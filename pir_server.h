@@ -21,7 +21,7 @@ class pir_server {
 public:
     pir_server(const seal::EncryptionParameters &params, const PirParams &pir_params);
     void set_galois_key(std::uint32_t client_id, seal::GaloisKeys galkey);
-    void set_database(const std::unique_ptr<const std::uint8_t[]> &bytes, std::uint64_t ele_num, std::uint64_t ele_size);
+    void set_database(const std::unique_ptr<const std::uint8_t[], MmapDeleter> &bytes, std::uint64_t ele_num, std::uint64_t ele_size);
 
     // NOTE: server takes over ownership of db and frees it when it exits.
     // Caller cannot free db

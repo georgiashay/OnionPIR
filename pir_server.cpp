@@ -26,7 +26,7 @@ void pir_server::set_galois_key(std::uint32_t client_id, seal::GaloisKeys galkey
 }
 
 void
-pir_server::set_database(const unique_ptr<const std::uint8_t[]> &bytes, std::uint64_t ele_num, std::uint64_t ele_size) {
+pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &bytes, std::uint64_t ele_num, std::uint64_t ele_size) {
     u_int64_t logt = params_.plain_modulus().bit_count();
     uint32_t N = params_.poly_modulus_degree();
     // number of FV plaintexts needed to represent all elements

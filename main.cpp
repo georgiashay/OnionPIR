@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <random>
 #include <pthread.h>
+#include <sys/mman.h>
 #include "nfl.hpp"
 #include "tools.h"
 #include "seal/seal.h"
@@ -928,12 +929,17 @@ int main(){
 
     cout << "Main: Initializing the database (this may take some time) ..." << endl;
 
+    size_t size = sizeof(uint8_t) * number_of_items * size_per_item;
+    MmapDeleter mmap_deleter(size);
+
     // Create test database
-    auto db(make_unique<uint8_t[]>(number_of_items * size_per_item));
+    uint8_t* db_ptr = (uint8_t*) mmap (NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+    std::unique_ptr<uint8_t[],  MmapDeleter> db(db_ptr, mmap_deleter);
 
     // Copy of the database. We use this at the end to make sure we retrieved
-    // the correct element.
-    auto db_copy(make_unique<uint8_t[]>(number_of_items * size_per_item));
+    // the correct element.    
+    uint8_t* db_copy_ptr = (uint8_t*) mmap (NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+    std::unique_ptr<uint8_t[],  MmapDeleter> db_copy(db_copy_ptr, mmap_deleter);
 
     random_device rd;
 

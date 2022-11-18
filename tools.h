@@ -2,6 +2,7 @@
 #define NFL_TESTS_TOOLS_H
 
 #include <chrono>
+#include <sys/mman.h>
 
 template <class T, size_t Align, class... Args>
 T* alloc_aligned(size_t n, Args&& ... args)
@@ -32,5 +33,19 @@ double get_time_us(T const& start, T const& end, uint32_t N)
   auto diff = end-start;
   return (long double)(std::chrono::duration_cast<std::chrono::microseconds>(diff).count())/N;
 }
+
+struct MmapDeleter {
+    private:
+        size_t size;
+
+    public:
+        MmapDeleter(size_t size) {
+            this->size = size;
+        }
+
+        void operator()(const void* p) { 
+             munmap(const_cast<void*>(p), size);
+        }
+};
 
 #endif
