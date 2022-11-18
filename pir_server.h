@@ -22,7 +22,6 @@ public:
     pir_server(const seal::EncryptionParameters &params, const PirParams &pir_params);
     void set_galois_key(std::uint32_t client_id, seal::GaloisKeys galkey);
     void set_database(const std::unique_ptr<const std::uint8_t[]> &bytes, std::uint64_t ele_num, std::uint64_t ele_size);
-    void set_database(std::unique_ptr<std::vector<seal::Plaintext>> &&db);
 
     // NOTE: server takes over ownership of db and frees it when it exits.
     // Caller cannot free db
@@ -30,7 +29,6 @@ public:
     PirReply generate_reply_combined(PirQuery query, uint32_t client_id, SecretKey sk);
     void set_enc_sk(GSWCiphertext sk_enc);
 
-    void preprocess_database();
 private:
     seal::EncryptionParameters params_; // SEAL parameters
     PirParams pir_params_;// PIR parameters

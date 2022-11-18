@@ -959,7 +959,6 @@ int main(){
 
     auto time_pre_s = high_resolution_clock::now();
     server.set_database(move(db), number_of_items, size_per_item);
-    server.preprocess_database();
     auto time_pre_e = high_resolution_clock::now();
     auto time_pre_us = duration_cast<microseconds>(time_pre_e - time_pre_s).count();
 

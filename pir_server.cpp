@@ -31,6 +31,7 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[]> &bytes, std::uin
     uint32_t N = params_.poly_modulus_degree();
     // number of FV plaintexts needed to represent all elements
     uint64_t total = plaintexts_per_db(logt, N, ele_num, ele_size);
+    int decomp_size = params_.plain_modulus().bit_count() / pir_params_.plain_base;
 
 
 
@@ -44,9 +45,6 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[]> &bytes, std::uin
 
     uint64_t matrix_plaintexts = prod;
     assert(total <= matrix_plaintexts);
-
-    auto result = make_unique<vector<Plaintext>>();
-    result->reserve(matrix_plaintexts);
 
     uint64_t ele_per_ptxt = elements_per_ptxt(logt, N, ele_size);
 
@@ -64,6 +62,7 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[]> &bytes, std::uin
 
     uint32_t offset = 0;
 
+    uint64_t current_plaintexts = 0;
     for (uint64_t i = 0; i < total; i++) {
 
         uint64_t process_bytes = 0;
@@ -99,11 +98,15 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[]> &bytes, std::uin
         Plaintext plain;
         vector_to_plaintext(coefficients, plain);
         //cout << i << "-th encoded plaintext = " << plain.to_string() << endl;
-        result->push_back(move(plain));
+        vector<uint64_t *> plain_decom;
+        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
+        poc_nfllib_ntt_rlwe_decomp(plain_decom);
+        split_db.push_back(plain_decom);
+
+        current_plaintexts++;
     }
 
     // Add padding to make database a matrix
-    uint64_t current_plaintexts = result->size();
     assert(current_plaintexts <= total);
 //
 #ifdef DEBUG
@@ -118,21 +121,11 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[]> &bytes, std::uin
     for (uint64_t i = 0; i < (matrix_plaintexts - current_plaintexts); i++) {
         Plaintext plain;
         vector_to_plaintext(padding, plain);
-        result->push_back(plain);
+        vector<uint64_t *> plain_decom;
+        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
+        poc_nfllib_ntt_rlwe_decomp(plain_decom);
+        split_db.push_back(plain_decom);
     }
-
-    set_database(move(result));
-
-}
-
-// Server takes over ownership of db and will free it when it exits
-void pir_server::set_database(unique_ptr<vector<Plaintext>> &&db) {
-    if (!db) {
-        throw invalid_argument("db cannot be null");
-    }
-
-    db_ = move(db);
-    is_db_preprocessed_ = false;
 }
 
 PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKey sk) {
@@ -648,31 +641,6 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
 //    cout << "Total" << durrr  << endl;
 
     return first_dim_intermediate_cts;
-}
-
-
-
-void pir_server::preprocess_database() {
-    if (!is_db_preprocessed_) {
-
-        int decomp_size = params_.plain_modulus().bit_count() / pir_params_.plain_base;
-        for (uint32_t i = 0; i < db_->size(); i++) {
-
-            vector<uint64_t *> plain_decom;
-            plain_decompositions(db_->data()[i], newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
-            poc_nfllib_ntt_rlwe_decomp(plain_decom);
-            split_db.push_back(plain_decom);
-
-
-        }
-
-        is_db_preprocessed_ = true;
-
-
-
-
-
-    }
 }
 
 void pir_server::set_enc_sk(GSWCiphertext sk_enc) {
