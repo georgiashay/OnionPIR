@@ -2,6 +2,7 @@
 // Created by Haris Mughees on 4/21/21.
 //
 
+#include <memory_resource>
 #include "external_prod.h"
 #include "pir.h"
 #include "pir_client.h"
@@ -38,8 +39,8 @@ private:
     std::shared_ptr<seal::SEALContext> newcontext_;
     seal::GaloisKeys galoisKeys_;
     std::unique_ptr<seal::Evaluator> evaluator_;
-    vector<uint64_t *> plain_decom;
-    vector<vector<uint64_t *>> split_db;
+    // vector<uint64_t *> plain_decom;
+    std::pmr::vector<std::pmr::vector<uint64_t *>> split_db;
     GSWCiphertext sk_enc_;
 
 

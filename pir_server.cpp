@@ -63,6 +63,11 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
     uint32_t offset = 0;
 
     uint64_t current_plaintexts = 0;
+
+    MmapAllocator allocator;
+    split_db = std::pmr::vector<std::pmr::vector<uint64_t*>> {&allocator};
+    split_db.reserve(matrix_plaintexts);
+
     for (uint64_t i = 0; i < total; i++) {
 
         uint64_t process_bytes = 0;
@@ -98,10 +103,30 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         Plaintext plain;
         vector_to_plaintext(coefficients, plain);
         //cout << i << "-th encoded plaintext = " << plain.to_string() << endl;
-        vector<uint64_t *> plain_decom;
+        std::pmr::vector<uint64_t *> plain_decom {&allocator};
         plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
+
         split_db.push_back(plain_decom);
+
+        // printf("Split db size: %d\n", (int)split_db.size());
+        // std::pmr::vector<uint64_t *> last_element = split_db[split_db.size() - 1];
+        // printf("All the 8 byte chunks in my element\n");
+        // for (int i = 0; i < sizeof(last_element)/8; i++) {
+        //     printf("%lx, ", (uint64_t)((uint64_t*)&last_element)[i]);
+        // }
+        // printf("\n");
+
+        // std::pmr::vector<uint64_t *>& ref_element = split_db[split_db.size() - 1];
+        // printf("All the 8 byte chunks in my reference\n");
+        // for (int i = 0; i < sizeof(ref_element)/8; i++) {
+        //     printf("%lx, ", (uint64_t)((uint64_t*)&ref_element)[i]);
+        // }
+        // printf("\n");
+
+        // printf("Last element size: %d\n", (int)last_element.size());
+        // printf("Reference size: %d\n", (int)ref_element.size());
+        // printf("Split db[end] size: %d\n", (int)((split_db[split_db.size() - 1]).size()));
 
         current_plaintexts++;
     }
@@ -121,7 +146,7 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
     for (uint64_t i = 0; i < (matrix_plaintexts - current_plaintexts); i++) {
         Plaintext plain;
         vector_to_plaintext(padding, plain);
-        vector<uint64_t *> plain_decom;
+        std::pmr::vector<uint64_t *> plain_decom;
         plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
         split_db.push_back(plain_decom);
@@ -322,7 +347,7 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
 
 
             intermediateCtxts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-            vector<uint64_t *> rlwe_decom;
+            std::pmr::vector<uint64_t *> rlwe_decom;
             rwle_decompositions(first_dim_intermediate_cts[k], newcontext_, decomp_size, pir_params_.gsw_base, rlwe_decom);
             poc_nfllib_ntt_rlwe_decomp(rlwe_decom);
             poc_nfllib_external_product(CtMuxBits[0 + previous_dim], rlwe_decom, newcontext_, decomp_size, intermediateCtxts[k],1);
@@ -586,7 +611,7 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
 
 
             intermediateCtxts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-            vector<uint64_t *> rlwe_decom;
+            std::pmr::vector<uint64_t *> rlwe_decom;
             rwle_decompositions(first_dim_intermediate_cts[k], newcontext_, decomp_size, pir_params_.gsw_base, rlwe_decom);
             poc_nfllib_ntt_rlwe_decomp(rlwe_decom);
             poc_nfllib_external_product(CtMuxBits[0 + previous_dim], rlwe_decom, newcontext_, decomp_size, intermediateCtxts[k],1);

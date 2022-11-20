@@ -3,6 +3,8 @@
 
 #include <chrono>
 #include <sys/mman.h>
+#include <vector>
+#include <memory_resource>
 
 template <class T, size_t Align, class... Args>
 T* alloc_aligned(size_t n, Args&& ... args)
@@ -46,6 +48,24 @@ struct MmapDeleter {
         void operator()(const void* p) { 
              munmap(const_cast<void*>(p), size);
         }
+};
+
+class MmapAllocator: public std::pmr::memory_resource {
+	private:
+		void* do_allocate(std::size_t bytes, std::size_t alignment) {
+			return mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+		}
+
+		void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) {
+			munmap(p, bytes);
+		}
+
+		bool do_is_equal(const std::pmr::memory_resource& other) const noexcept {
+			if (const MmapAllocator* m = dynamic_cast<const MmapAllocator*>(&other); m != nullptr) {
+				return true;
+			}
+			return false;
+		}
 };
 
 #endif

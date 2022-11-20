@@ -381,7 +381,7 @@ void pir_client::test_query_expansion(PirQuery query, GaloisKeys galkey) {
     auto gsw_enc_time_end = std::chrono::steady_clock::now();
 
 
-    vector<uint64_t *> plain_decom;
+    std::pmr::vector<uint64_t *> plain_decom;
     plain_decompositions(pt, newcontext_, decomp_size, base_bits, plain_decom);
 
     poc_nfllib_ntt_rlwe_decomp(plain_decom);

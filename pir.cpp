@@ -256,7 +256,7 @@ mux_inplace(Ciphertext &sample_c0, Ciphertext &sample_c1, GSWCiphertext choice_b
         ///external prod with choice bit
         // res_ct = b*(c1 - c0) = b* temp_sub
         Ciphertext res_ct;
-        vector<uint64_t *> rlwe_decom;
+        std::pmr::vector<uint64_t *> rlwe_decom;
         rwle_decompositions(temp_sub, context, l, base_bit, rlwe_decom);
 
         poc_nfllib_ntt_gsw(choice_bit, context);

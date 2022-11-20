@@ -119,7 +119,7 @@ void poc_multiply_add_plain_without_scaling_variant(const Plaintext &plain, cons
 
 void
 rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, const uint64_t l, const uint64_t base_bit,
-                    vector<uint64_t *> &rlwe_decom) {
+                    std::pmr::vector<uint64_t *> &rlwe_decom) {
     const auto &context_data2 = context->first_context_data();
     auto &parms2 = context_data2->parms();
     auto &coeff_modulus = parms2.coeff_modulus();
@@ -150,7 +150,7 @@ rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, const
 }
 
 void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALContext> context,
-                        vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
+                        std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
 
     assert(vec_ciphertexts.size() == 0);
     const uint64_t base = UINT64_C(1) << base_bit;
@@ -168,13 +168,14 @@ void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALC
     int total_bits;
     std::uint64_t *res;
 
+    vec_ciphertexts.reserve(pt_poly_count * r_l);
+
     for (int j = 0; j < pt_poly_count; j++) {// c0, c1
         total_bits = (plain_modulus.bit_count()); // in normal rlwe decomp we use total bits of q, here total bits of t is required
         uint64_t *raw_ptr = pt.data();
 
 
         for (int p = 0; p < r_l; p++) {
-            vector<uint64_t *> results;
             res = (std::uint64_t *) calloc((coeff_count * coeff_mod_count), sizeof(uint64_t)); //we are allocating larger space to cater for ct modulus later
             const int shift_amount = ((total_bits) - ((p + 1) * base_bit));
 
@@ -201,7 +202,7 @@ void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALC
 
 void
 plain_decompositions(Plaintext &pt, shared_ptr<SEALContext> &context, const uint64_t decomp_size, const uint64_t base_bit,
-                     vector<uint64_t *> &plain_decom) {
+                     std::pmr::vector<uint64_t *> &plain_decom) {
     const auto &context_data2 = context->first_context_data();
     auto &parms2 = context_data2->parms();
     auto &coeff_modulus = parms2.coeff_modulus();
@@ -234,7 +235,7 @@ plain_decompositions(Plaintext &pt, shared_ptr<SEALContext> &context, const uint
 }
 
 void poc_decomp_rlwe128(Ciphertext ct, const uint64_t l, shared_ptr<SEALContext> context,
-                        vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
+                        std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
 
     assert(vec_ciphertexts.size() == 0);
     const uint64_t base = UINT64_C(1) << base_bit;
@@ -251,12 +252,13 @@ void poc_decomp_rlwe128(Ciphertext ct, const uint64_t l, shared_ptr<SEALContext>
     int total_bits;
     std::uint64_t *res;
 
+    vec_ciphertexts.reserve(ct_poly_count * r_l);
+
     for (int j = 0; j < ct_poly_count; j++) {// c0, c1
         total_bits = (context_data->total_coeff_modulus_bit_count());
         uint64_t *encrypted1_ptr = ct.data(j);
 
         for (int p = 0; p < r_l; p++) {
-            vector<uint64_t *> results;
             res = (std::uint64_t *) calloc((coeff_count * coeff_mod_count), sizeof(uint64_t));
             const int shift_amount = ((total_bits) - ((p + 1) * base_bit));
             for (size_t k = 0; k < coeff_mod_count * coeff_count; k = k + 2) {
@@ -492,7 +494,7 @@ void poc_expand_flat(vector<GSWCiphertext>::iterator &result, vector<Ciphertext>
         expanded_ciphers = poc_rlwe_expand(packed_swap_bits[i], context, galkey, size);
         auto rlwe_end = std::chrono::high_resolution_clock::now();
 
-        vector<uint64_t *> rlwe_decom;
+        // vector<uint64_t *> rlwe_decom;
         for (int j = 0; j < size; j++) {
             ///put jth expanded ct in ith idx slot  of jt gswct
             result[j][i] = expanded_ciphers[j];
@@ -535,7 +537,7 @@ void poc_expand_flat_combined(vector<GSWCiphertext>::iterator &result, vector<Ci
     for (int i = 0; i < 2; i++) {
 
         //components of first dimension
-        vector<uint64_t *> rlwe_decom;
+        // vector<uint64_t *> rlwe_decom;
         for (int j = 0; j < size; j++) {
             ///put jth expanded ct in ith idx slot  of jt gswct
             result[j][i] = expanded_ciphers[j+i*size];
@@ -857,7 +859,7 @@ void poc_nfllib_ntt_ct(Ciphertext &ct , shared_ptr<SEALContext> &context){
     }
 }
 
-void poc_nfllib_ntt_rlwe_decomp(vector<uint64_t *> &rlwe_expansion){
+void poc_nfllib_ntt_rlwe_decomp(std::pmr::vector<uint64_t *> &rlwe_expansion){
 
 
 
@@ -981,7 +983,7 @@ void poc_nfllib_plain_ct_prod(Ciphertext &ct , Plaintext &pt,
 
 }
 
-void poc_nfllib_external_product(vector<Ciphertext> &gsw_enc, vector<uint64_t *> &rlwe_expansion,
+void poc_nfllib_external_product(vector<Ciphertext> &gsw_enc, std::pmr::vector<uint64_t *> &rlwe_expansion,
                                  shared_ptr<SEALContext> &context, int l, Ciphertext &res_ct, int is_reusable=1) {
 
     //assert(gsw_enc.size()==l);
@@ -1316,7 +1318,7 @@ void poc_expand_flat_threaded(vector<GSWCiphertext>::iterator &result, vector<Ci
     int k=0;
     for(auto& th: threads){
         th.join();
-        vector<uint64_t *> rlwe_decom;
+        // std::pmr::vector<uint64_t *> rlwe_decom;
         for (int j = 0; j < size; j++) {
             ///put jth expanded ct in ith idx slot  of jt gswct
             result[j][k] = threaded_expanded_ciphers[k][j];
@@ -1558,7 +1560,7 @@ void thread_server_expand(vector<GSWCiphertext>::iterator &result, vector<Cipher
         expanded_ciphers = poc_rlwe_expand(packed_swap_bits[i], context, galkey, size);
 
 
-        vector<uint64_t *> rlwe_decom;
+        std::pmr::vector<uint64_t *> rlwe_decom;
 
         for (int j = 0; j < size; j++) {
 
@@ -1623,7 +1625,7 @@ void gsw_server_expand_combined(vector<GSWCiphertext>::iterator &result, vector<
         //expanded_ciphers = poc_rlwe_expand(packed_swap_bits[i], context, galkey, size);
 
 
-        vector<uint64_t *> rlwe_decom;
+        std::pmr::vector<uint64_t *> rlwe_decom;
 
         for (int j = 0; j < total_dim_size; j++) {
 
@@ -1845,7 +1847,7 @@ rlweExpand(Ciphertext packedquery, shared_ptr<SEALContext> context, seal::Galois
     return temp;
 }
 
-void my_poc_nfllib_external_product(vector<Ciphertext> gsw_enc, vector<uint64_t *> rlwe_expansion,
+void my_poc_nfllib_external_product(vector<Ciphertext> gsw_enc, std::pmr::vector<uint64_t *> &rlwe_expansion,
                                  shared_ptr<SEALContext> context, int l, Ciphertext &res_ct, int is_reusable) {
 
     const auto &context_data = context->get_context_data(gsw_enc[0].parms_id());
@@ -1964,7 +1966,7 @@ void set_ciphertext(Ciphertext &ct, shared_ptr<SEALContext> context) {
 
 void
 my_rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, const uint64_t l, const uint64_t base_bit,
-                       vector<uint64_t *> &rlwe_decom) {
+                       std::pmr::vector<uint64_t *> &rlwe_decom) {
     const auto &context_data2 = context->first_context_data();
     auto &parms2 = context_data2->parms();
     auto &coeff_modulus = parms2.coeff_modulus();
@@ -1994,7 +1996,7 @@ my_rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, co
 }
 
 void my_poc_decomp_rlwe128(Ciphertext ct, const uint64_t l, shared_ptr<SEALContext> context,
-                           vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
+                           std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
     assert(vec_ciphertexts.size() == 0);
     const uint64_t base = UINT64_C(1) << base_bit;
     const uint64_t mask = base - 1;
@@ -2009,6 +2011,8 @@ void my_poc_decomp_rlwe128(Ciphertext ct, const uint64_t l, shared_ptr<SEALConte
     uint64_t r_l = l;
     int total_bits;
     std::uint64_t *res;
+
+    vec_ciphertexts.reserve(ct_poly_count * r_l);
 
     for (int j = 0; j < ct_poly_count; j++) {// c0, c1
         total_bits = (context_data->total_coeff_modulus_bit_count());

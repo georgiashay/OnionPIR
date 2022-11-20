@@ -8,6 +8,7 @@
 #include <random>
 #include <pthread.h>
 #include <sys/mman.h>
+#include <memory_resource>
 #include "nfl.hpp"
 #include "tools.h"
 #include "seal/seal.h"
@@ -67,7 +68,7 @@ test_external_prod_with_sk(Evaluator &evaluator1, Encryptor &encryptor1, Decrypt
     cout << "-----------------------------------------------" << endl;
     cout << "Noise budget before external product=" << decryptor1.invariant_noise_budget(test_rlwe_ct) << endl;
 
-    vector<uint64_t *> rlwe_decom;
+    std::pmr::vector<uint64_t *> rlwe_decom;
 
 
     int duration = 0;
@@ -157,7 +158,7 @@ void test_external_prod(Evaluator &evaluator1, Encryptor &encryptor1, Decryptor 
     cout << "-----------------------------------------------" << endl;
     cout << "Noise budget before external product=" << decryptor1.invariant_noise_budget(test_rlwe_ct) << endl;
 
-    vector<uint64_t *> rlwe_decom;
+    std::pmr::vector<uint64_t *> rlwe_decom;
 
 
     int duration = 0;
@@ -316,7 +317,7 @@ void test_gsw_expansion(Evaluator &evaluator1, Encryptor &encryptor1, Decryptor 
     encryptor1.encrypt_symmetric(test_rlwe_pt, test_rlwe_ct);
 
     ///steps to crt-compose -> baseB-decompose -> crt-decompose
-    vector<uint64_t *> rlwe_decom;
+    std::pmr::vector<uint64_t *> rlwe_decom;
     rwle_decompositions(test_rlwe_ct, context, l, base_bit, rlwe_decom);
     poc_nfllib_ntt_rlwe_decomp(rlwe_decom);
 
@@ -431,7 +432,7 @@ test_homomorphic_permutation(Evaluator &evaluator1, Encryptor &encryptor1, Decry
     encryptor1.encrypt_symmetric(test_rlwe_pt, test_rlwe_ct);
 
     ///steps to crt-compose -> baseB-decompose -> crt-decompose
-    vector<uint64_t *> rlwe_decom;
+    std::pmr::vector<uint64_t *> rlwe_decom;
     rwle_decompositions(test_rlwe_ct, context, l, base_bit, rlwe_decom);
     poc_nfllib_ntt_rlwe_decomp(rlwe_decom);
 
@@ -512,7 +513,7 @@ void test_plain_expansion(Evaluator &evaluator1, Encryptor &encryptor1, Decrypto
     auto gsw_enc_time_end = std::chrono::steady_clock::now();
 
 
-    vector<uint64_t *> plain_decom;
+    std::pmr::vector<uint64_t *> plain_decom;
     plain_decompositions(pt, context, decomp_size, base_bits, plain_decom);
 
 
@@ -653,7 +654,7 @@ void test_plain_flatening(Evaluator &evaluator1, Encryptor &encryptor1, Decrypto
 
 
 
-    vector<uint64_t *> plain_decom;
+    std::pmr::vector<uint64_t *> plain_decom;
     plain_decompositions(pt, context, decomp_size, base_bits, plain_decom);
 
 
@@ -731,7 +732,7 @@ void test_external_prod_chain(Evaluator &evaluator1, Encryptor &encryptor1, Decr
     encryptor1.encrypt_symmetric(test_rlwe_pt, test_rlwe_ct);
 
     ///steps to crt-compose -> baseB-decompose -> crt-decompose
-    vector<uint64_t *> rlwe_decom;
+    std::pmr::vector<uint64_t *> rlwe_decom;
     rwle_decompositions(test_rlwe_ct, context, lvl, base_bits, rlwe_decom);
 
     Ciphertext res_ct;
@@ -755,7 +756,7 @@ void test_external_prod_chain(Evaluator &evaluator1, Encryptor &encryptor1, Decr
         decryptor1.decrypt(res_ct, pp);
         cout << "Noise budget after " << i << " external product " << decryptor1.invariant_noise_budget(res_ct) << endl;
 
-        vector<uint64_t *> rlwe_decom;
+        std::pmr::vector<uint64_t *> rlwe_decom;
         rwle_decompositions(res_ct, context, lvl, base_bits, rlwe_decom);
 
         poc_nfllib_external_product(choice_bit, rlwe_decom, context, lvl, res_ct, 1);
@@ -999,7 +1000,7 @@ int main(){
     Plaintext rep= client.decrypt_result(reply);
 
     // Convert from FV plaintext (polynomial) to database element at the client
-    vector<uint8_t> elems(N * logt / 8);
+    std::pmr::vector<uint8_t> elems(N * logt / 8);
     coeffs_to_bytes(logt, rep, elems.data(), (N * logt) / 8);
 
     // Check that we retrieved the correct element
