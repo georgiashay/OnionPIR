@@ -43,6 +43,7 @@ private:
     // vector<uint64_t *> plain_decom;
     uint64_t* split_db_data;
     size_t split_db_data_size;
+    MmapAllocator split_db_allocator;
     std::pmr::vector<std::pmr::vector<uint64_t *>> split_db;
     GSWCiphertext sk_enc_;
 

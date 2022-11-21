@@ -52,7 +52,31 @@ struct MmapDeleter {
 
 class MmapAllocator: public std::pmr::memory_resource {
 	private:
+		uint8_t* reserved;
+		std::size_t reserved_bytes;
+
 		void* do_allocate(std::size_t bytes, std::size_t alignment) {
+			if (reserved_bytes >= bytes) {
+				// Enough bytes left in reservation
+
+				// Get next pointer after reservation that is aligned to alignment
+				uint8_t* p = reserved;
+				std::size_t mask = ~(alignment - 1);
+				uint8_t* p_mask = (uint8_t*)((uint64_t)p & mask);
+				if (p_mask != p) {
+					p = p_mask + alignment;
+				}
+				std::size_t extra_bytes = p - reserved;
+
+				// Check if we still have enough bytes left after the alignment
+				if (reserved_bytes >= bytes + extra_bytes) {
+					// Update reservation by decreasing available bytes
+					reserved = p + bytes;
+					reserved_bytes -= (bytes + extra_bytes);
+					return (void*) p;
+				}
+			}
+
 			void* p = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 			if (p == MAP_FAILED) {
 				throw std::runtime_error("Mmap failed for mmap allocator");
@@ -69,6 +93,24 @@ class MmapAllocator: public std::pmr::memory_resource {
 				return true;
 			}
 			return false;
+		}
+
+	public:
+		MmapAllocator() {
+			reserved = nullptr;
+			reserved_bytes = 0;
+		}
+
+		void reserve(std::size_t reserve_bytes) {
+			// Reserve memory mapped region in advance to use for subsequent allocations
+			reserved = (uint8_t*) mmap(NULL, reserve_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+			if (reserved == MAP_FAILED) {
+				// mmap failed, do not keep reservations
+				reserved = nullptr;
+				reserved_bytes = 0;
+			} else {
+				reserved_bytes = reserve_bytes;
+			}
 		}
 };
 

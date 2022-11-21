@@ -9,7 +9,8 @@
 pir_server::pir_server(const EncryptionParameters &params, const PirParams &pir_params) :
         params_(params),
         pir_params_(pir_params),
-        is_db_preprocessed_(false)
+        is_db_preprocessed_(false),
+        split_db(std::pmr::vector<std::pmr::vector<uint64_t*>>(&split_db_allocator))
 {
     auto context = SEALContext::Create(params, false);
     evaluator_ = make_unique<Evaluator>(context);
@@ -66,8 +67,6 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
 
     uint64_t current_plaintexts = 0;
 
-    MmapAllocator allocator;
-    split_db = std::pmr::vector<std::pmr::vector<uint64_t*>> {&allocator};
     split_db.reserve(matrix_plaintexts);
 
     size_t split_db_data_elements = matrix_plaintexts * decomp_size * coeff_count * coeff_mod_count;
@@ -84,6 +83,7 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
     }
 
     uint64_t* next_data_section = split_db_data;
+    split_db_allocator.reserve(matrix_plaintexts*decomp_size*sizeof(uint64_t*));
 
     for (uint64_t i = 0; i < total; i++) {
 
@@ -120,7 +120,7 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         Plaintext plain;
         vector_to_plaintext(coefficients, plain);
         //cout << i << "-th encoded plaintext = " << plain.to_string() << endl;
-        std::pmr::vector<uint64_t *> plain_decom {&allocator};
+        std::pmr::vector<uint64_t *> plain_decom;
         plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom, next_data_section);
         next_data_section += decomp_size * coeff_count * coeff_mod_count;
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
