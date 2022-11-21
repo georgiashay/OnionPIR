@@ -53,7 +53,11 @@ struct MmapDeleter {
 class MmapAllocator: public std::pmr::memory_resource {
 	private:
 		void* do_allocate(std::size_t bytes, std::size_t alignment) {
-			return mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+			void* p = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+			if (p == MAP_FAILED) {
+				throw std::runtime_error("Mmap failed");
+			}
+			return p;
 		}
 
 		void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) {
