@@ -63,10 +63,11 @@ void poc_nfllib_plain_ct_prod(Ciphertext &ct , Plaintext &pt,
 
 void
 plain_decompositions(Plaintext &pt, shared_ptr<SEALContext> &context, const uint64_t decomp_size, const uint64_t base_bit,
-                     std::pmr::vector<uint64_t *> &plain_decom);
+                     std::pmr::vector<uint64_t *> &plain_decom, uint64_t* preallocated_mem = nullptr);
 
 void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALContext> context,
-                      std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool);
+                      std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool,
+                      uint64_t* preallocated_mem = nullptr);
 
 void poc_plain_gsw_enc128(const uint64_t decomp_size, const uint64_t base_bit, shared_ptr<SEALContext> context,
                           const SecretKey sk, vector<Ciphertext> &gsw_ciphertext, Plaintext gsw_plain,

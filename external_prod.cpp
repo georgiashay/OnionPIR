@@ -150,7 +150,10 @@ rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, const
 }
 
 void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALContext> context,
-                        std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
+                        std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool,
+                        uint64_t* preallocated_mem) {
+    // if preallocated_mem is provided, must be able to hold pt_poly_count * r_l * coeff_count * coeff_mod_count
+    // and must be initialized to 0s
 
     assert(vec_ciphertexts.size() == 0);
     const uint64_t base = UINT64_C(1) << base_bit;
@@ -170,13 +173,21 @@ void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALC
 
     vec_ciphertexts.reserve(pt_poly_count * r_l);
 
+    uint64_t* current_preallocated = preallocated_mem;
+
     for (int j = 0; j < pt_poly_count; j++) {// c0, c1
         total_bits = (plain_modulus.bit_count()); // in normal rlwe decomp we use total bits of q, here total bits of t is required
         uint64_t *raw_ptr = pt.data();
 
 
         for (int p = 0; p < r_l; p++) {
-            res = (std::uint64_t *) calloc((coeff_count * coeff_mod_count), sizeof(uint64_t)); //we are allocating larger space to cater for ct modulus later
+            if (preallocated_mem == nullptr) {
+                res = (std::uint64_t *) calloc((coeff_count * coeff_mod_count), sizeof(uint64_t)); //we are allocating larger space to cater for ct modulus later
+            } else {
+                res = current_preallocated;
+                current_preallocated += coeff_count * coeff_mod_count;
+            }
+            
             const int shift_amount = ((total_bits) - ((p + 1) * base_bit));
 
 
@@ -202,7 +213,11 @@ void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALC
 
 void
 plain_decompositions(Plaintext &pt, shared_ptr<SEALContext> &context, const uint64_t decomp_size, const uint64_t base_bit,
-                     std::pmr::vector<uint64_t *> &plain_decom) {
+                     std::pmr::vector<uint64_t *> &plain_decom, uint64_t* preallocated_mem) {
+
+    // if preallocated_mem is provided, must be able to hold pt_poly_coumt * decomp_size * coeff_count * coeff_mod_count
+    // and be initialized to 0s
+
     const auto &context_data2 = context->first_context_data();
     auto &parms2 = context_data2->parms();
     auto &coeff_modulus = parms2.coeff_modulus();
@@ -220,7 +235,7 @@ plain_decompositions(Plaintext &pt, shared_ptr<SEALContext> &context, const uint
     //128 bits decomp as given in external product
 
 
-    poc_decomp_plain(pt, decomp_size, context, plain_decom, base_bit, pool);
+    poc_decomp_plain(pt, decomp_size, context, plain_decom, base_bit, pool, preallocated_mem);
 
     //auto rlwe_start = std::chrono::high_resolution_clock::now();
     int ssize = plain_decom.size();

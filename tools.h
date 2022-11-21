@@ -55,7 +55,7 @@ class MmapAllocator: public std::pmr::memory_resource {
 		void* do_allocate(std::size_t bytes, std::size_t alignment) {
 			void* p = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 			if (p == MAP_FAILED) {
-				throw std::runtime_error("Mmap failed");
+				throw std::runtime_error("Mmap failed for mmap allocator");
 			}
 			return p;
 		}

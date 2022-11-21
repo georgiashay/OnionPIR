@@ -29,6 +29,7 @@ public:
     PirReply generate_reply(PirQuery query, uint32_t client_id, SecretKey sk);
     PirReply generate_reply_combined(PirQuery query, uint32_t client_id, SecretKey sk);
     void set_enc_sk(GSWCiphertext sk_enc);
+    ~pir_server();
 
 private:
     seal::EncryptionParameters params_; // SEAL parameters
@@ -40,6 +41,8 @@ private:
     seal::GaloisKeys galoisKeys_;
     std::unique_ptr<seal::Evaluator> evaluator_;
     // vector<uint64_t *> plain_decom;
+    uint64_t* split_db_data;
+    size_t split_db_data_size;
     std::pmr::vector<std::pmr::vector<uint64_t *>> split_db;
     GSWCiphertext sk_enc_;
 

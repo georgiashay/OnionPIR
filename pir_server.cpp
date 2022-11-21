@@ -32,6 +32,8 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
     // number of FV plaintexts needed to represent all elements
     uint64_t total = plaintexts_per_db(logt, N, ele_num, ele_size);
     int decomp_size = params_.plain_modulus().bit_count() / pir_params_.plain_base;
+    size_t coeff_count = params_.poly_modulus_degree();
+    size_t coeff_mod_count = params_.coeff_modulus().size();
 
 
 
@@ -67,6 +69,21 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
     MmapAllocator allocator;
     split_db = std::pmr::vector<std::pmr::vector<uint64_t*>> {&allocator};
     split_db.reserve(matrix_plaintexts);
+
+    size_t split_db_data_elements = matrix_plaintexts * decomp_size * coeff_count * coeff_mod_count;
+    split_db_data_size = split_db_data_elements * sizeof(uint64_t);
+
+    split_db_data = (uint64_t*) mmap(NULL, split_db_data_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+
+    if (split_db_data == MAP_FAILED) {
+        throw std::runtime_error("Mmap failed for split_db_data");
+    }
+
+    for (int i = 0; i < split_db_data_elements; i++) {
+        split_db_data[i] = 0;
+    }
+
+    uint64_t* next_data_section = split_db_data;
 
     for (uint64_t i = 0; i < total; i++) {
 
@@ -104,7 +121,8 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         vector_to_plaintext(coefficients, plain);
         //cout << i << "-th encoded plaintext = " << plain.to_string() << endl;
         std::pmr::vector<uint64_t *> plain_decom {&allocator};
-        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
+        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom, next_data_section);
+        next_data_section += decomp_size * coeff_count * coeff_mod_count;
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
 
         split_db.push_back(plain_decom);
@@ -147,7 +165,8 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         Plaintext plain;
         vector_to_plaintext(padding, plain);
         std::pmr::vector<uint64_t *> plain_decom;
-        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
+        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom, next_data_section);
+        next_data_section += decomp_size * coeff_count * coeff_mod_count;
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
         split_db.push_back(plain_decom);
     }
@@ -670,4 +689,8 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
 
 void pir_server::set_enc_sk(GSWCiphertext sk_enc) {
     sk_enc_=sk_enc;
+}
+
+pir_server::~pir_server() {
+    munmap(split_db_data, split_db_data_size);
 }
