@@ -9,6 +9,9 @@
 #include <pthread.h>
 #include <sys/mman.h>
 #include <memory_resource>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <fstream>
 #include "nfl.hpp"
 #include "tools.h"
 #include "seal/seal.h"
@@ -895,11 +898,29 @@ void test_seal(Evaluator &evaluator1, Encryptor &encryptor1, Decryptor &decrypto
 //    return 0;
 //}
 
-int main(){
+int main(int argc, char *argv[]) {
 
+    //uint64_t number_of_items = 1<<18;
+    //uint64_t number_of_items = 1<<14;
     uint64_t number_of_items = 1<<14;
     uint64_t size_per_item = 30000; // in bytes
     uint32_t N = 4096;
+
+    int opt;
+    while ((opt = getopt(argc, argv, "n:s:")) != -1) {
+        switch(opt) {
+            case 'n':
+                number_of_items = 1 << atoi(optarg);
+                break;
+            case 's':
+                size_per_item = atoi(optarg);
+                break;
+            default: /* '?' */
+                fprintf(stderr, "Usage: %s [-n log_num_items] [-s size_per_item]\n",
+                        argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
 
     // Recommended values: (logt, d) = (12, 2) or (8, 1).
     uint32_t logt = 60;
@@ -930,28 +951,52 @@ int main(){
 
     cout << "Main: Initializing the database (this may take some time) ..." << endl;
 
+
+
+    // Create test database
+    ofstream db_file;
+    db_file.open("db.db", ios::binary | ios::trunc);
+
+    // Copy of the database. We use this at the end to make sure we retrieved
+    // the correct element. 
+    ofstream db_copy_file;
+    db_copy_file.open("db_copy.db", ios::binary | ios::trunc);
+
+    random_device rd;
+    uint64_t page_size = sysconf(_SC_PAGE_SIZE);
+
+    for (uint64_t i = 0; i < number_of_items; i++) {
+        // printf("Page %ld/%ld\n", i * size_per_item/page_size, number_of_items * size_per_item/page_size);
+        // printf("%ld bytes/%ld\n", i * size_per_item, number_of_items * size_per_item);
+        // prin tf("%ld/%ld\n", i+1, number_of_items);
+        uint8_t* row = new uint8_t[size_per_item];
+        for (uint64_t j = 0; j < size_per_item; j++) {
+            row[j] = i + j;
+        }
+        db_file.write((char*)row, size_per_item);
+        db_copy_file.write((char*)row, size_per_item);
+    }
+    db_file.close();
+    db_copy_file.close();
+
     size_t size = sizeof(uint8_t) * number_of_items * size_per_item;
     MmapDeleter mmap_deleter(size);
 
-    // Create test database
-    uint8_t* db_ptr = (uint8_t*) mmap (NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+    int db_fd = open("db.db", O_RDONLY, S_IRUSR);
+    uint8_t* db_ptr = (uint8_t*) mmap (NULL, size, PROT_READ, MAP_SHARED, db_fd, 0);
+    if (db_ptr == MAP_FAILED) {
+        printf("Mapping failed with error %s\n", strerror(errno));
+        throw std::runtime_error("Mapping failed");
+    }
     std::unique_ptr<uint8_t[],  MmapDeleter> db(db_ptr, mmap_deleter);
 
-    // Copy of the database. We use this at the end to make sure we retrieved
-    // the correct element.    
-    uint8_t* db_copy_ptr = (uint8_t*) mmap (NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
-    std::unique_ptr<uint8_t[],  MmapDeleter> db_copy(db_copy_ptr, mmap_deleter);
-
-    random_device rd;
-
-    for (uint64_t i = 0; i < number_of_items; i++) {
-        for (uint64_t j = 0; j < size_per_item; j++) {
-//            auto val =  123;
-            db.get()[(i * size_per_item) + j] = i+j;
-            db_copy.get()[(i * size_per_item) + j] = i+j;
-            //cout<<db.get()[(i * size_per_item) + j]<<endl;
-        }
+    int db_copy_fd = open("db_copy.db", O_RDONLY, S_IRUSR);
+    uint8_t* db_copy_ptr = (uint8_t*) mmap (NULL, size, PROT_READ, MAP_SHARED, db_copy_fd, 0);
+    if (db_copy_ptr == MAP_FAILED) {
+        printf("Mapping failed with error %s\n", strerror(errno));
+        throw std::runtime_error("Mapping failed");
     }
+    std::unique_ptr<uint8_t[],  MmapDeleter> db_copy(db_copy_ptr, mmap_deleter);
 
     // Initialize PIR Server
     cout << "Main: Initializing server and client" << endl;

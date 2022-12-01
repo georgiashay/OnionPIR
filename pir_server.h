@@ -3,6 +3,8 @@
 //
 
 #include <memory_resource>
+#include <fcntl.h>
+#include <fstream>
 #include "external_prod.h"
 #include "pir.h"
 #include "pir_client.h"
@@ -29,6 +31,7 @@ public:
     PirReply generate_reply(PirQuery query, uint32_t client_id, SecretKey sk);
     PirReply generate_reply_combined(PirQuery query, uint32_t client_id, SecretKey sk);
     void set_enc_sk(GSWCiphertext sk_enc);
+    std::pmr::vector<uint64_t *> get_split_db_at(uint64_t index);
     ~pir_server();
 
 private:
@@ -43,8 +46,6 @@ private:
     // vector<uint64_t *> plain_decom;
     uint64_t* split_db_data;
     size_t split_db_data_size;
-    MmapAllocator split_db_allocator;
-    std::pmr::vector<std::pmr::vector<uint64_t *>> split_db;
     GSWCiphertext sk_enc_;
 
 

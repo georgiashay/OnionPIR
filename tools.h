@@ -5,6 +5,7 @@
 #include <sys/mman.h>
 #include <vector>
 #include <memory_resource>
+#include <unistd.h>
 
 template <class T, size_t Align, class... Args>
 T* alloc_aligned(size_t n, Args&& ... args)

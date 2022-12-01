@@ -9,8 +9,7 @@
 pir_server::pir_server(const EncryptionParameters &params, const PirParams &pir_params) :
         params_(params),
         pir_params_(pir_params),
-        is_db_preprocessed_(false),
-        split_db(std::pmr::vector<std::pmr::vector<uint64_t*>>(&split_db_allocator))
+        is_db_preprocessed_(false)
 {
     auto context = SEALContext::Create(params, false);
     evaluator_ = make_unique<Evaluator>(context);
@@ -26,6 +25,27 @@ void pir_server::set_galois_key(std::uint32_t client_id, seal::GaloisKeys galkey
 
 }
 
+std::pmr::vector<uint64_t *> pir_server::get_split_db_at(uint64_t index) {
+    int decomp_size = params_.plain_modulus().bit_count() / pir_params_.plain_base;
+
+    const auto &context_data2 = newcontext_->first_context_data();
+    auto &parms2 = context_data2->parms();
+    auto &coeff_modulus = parms2.coeff_modulus();
+    size_t coeff_mod_count = coeff_modulus.size();
+    size_t coeff_count = parms2.poly_modulus_degree();
+
+    std::pmr::vector<uint64_t*> indexed;
+    for (int i = 0; i < decomp_size; i++) {
+        // TODO: this gets the wrong index for i = 1 
+        // specifically seems to be 4096 values off (one coeff_mod_count)
+        // ?? confusion
+        // possibly an error with using preallocated mem and doing bad pointer arithmetic there?
+        indexed.push_back(split_db_data + (((index * decomp_size) + i) * coeff_count * coeff_mod_count));
+    }
+    return indexed;
+}
+
+
 void
 pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &bytes, std::uint64_t ele_num, std::uint64_t ele_size) {
     u_int64_t logt = params_.plain_modulus().bit_count();
@@ -33,8 +53,12 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
     // number of FV plaintexts needed to represent all elements
     uint64_t total = plaintexts_per_db(logt, N, ele_num, ele_size);
     int decomp_size = params_.plain_modulus().bit_count() / pir_params_.plain_base;
-    size_t coeff_count = params_.poly_modulus_degree();
-    size_t coeff_mod_count = params_.coeff_modulus().size();
+
+    const auto &context_data2 = newcontext_->first_context_data();
+    auto &parms2 = context_data2->parms();
+    auto &coeff_modulus = parms2.coeff_modulus();
+    size_t coeff_mod_count = coeff_modulus.size();
+    size_t coeff_count = parms2.poly_modulus_degree();
 
 
 
@@ -67,23 +91,11 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
 
     uint64_t current_plaintexts = 0;
 
-    split_db.reserve(matrix_plaintexts);
-
     size_t split_db_data_elements = matrix_plaintexts * decomp_size * coeff_count * coeff_mod_count;
     split_db_data_size = split_db_data_elements * sizeof(uint64_t);
 
-    split_db_data = (uint64_t*) mmap(NULL, split_db_data_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-
-    if (split_db_data == MAP_FAILED) {
-        throw std::runtime_error("Mmap failed for split_db_data");
-    }
-
-    for (int i = 0; i < split_db_data_elements; i++) {
-        split_db_data[i] = 0;
-    }
-
-    uint64_t* next_data_section = split_db_data;
-    split_db_allocator.reserve(matrix_plaintexts*decomp_size*sizeof(uint64_t*));
+    ofstream split_db_file;
+    split_db_file.open("split_db.db", ios::binary | ios::trunc);
 
     for (uint64_t i = 0; i < total; i++) {
 
@@ -121,31 +133,16 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         vector_to_plaintext(coefficients, plain);
         //cout << i << "-th encoded plaintext = " << plain.to_string() << endl;
         std::pmr::vector<uint64_t *> plain_decom;
-        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom, next_data_section);
-        next_data_section += decomp_size * coeff_count * coeff_mod_count;
+        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
 
-        split_db.push_back(plain_decom);
+        for (int d = 0; d < decomp_size; d++) {
+            split_db_file.write((char*)plain_decom[d], coeff_count * coeff_mod_count * sizeof(uint64_t));
+            free(plain_decom[d]);
+        }
+        // split_db_file.flush();
 
-        // printf("Split db size: %d\n", (int)split_db.size());
-        // std::pmr::vector<uint64_t *> last_element = split_db[split_db.size() - 1];
-        // printf("All the 8 byte chunks in my element\n");
-        // for (int i = 0; i < sizeof(last_element)/8; i++) {
-        //     printf("%lx, ", (uint64_t)((uint64_t*)&last_element)[i]);
-        // }
-        // printf("\n");
-
-        // std::pmr::vector<uint64_t *>& ref_element = split_db[split_db.size() - 1];
-        // printf("All the 8 byte chunks in my reference\n");
-        // for (int i = 0; i < sizeof(ref_element)/8; i++) {
-        //     printf("%lx, ", (uint64_t)((uint64_t*)&ref_element)[i]);
-        // }
-        // printf("\n");
-
-        // printf("Last element size: %d\n", (int)last_element.size());
-        // printf("Reference size: %d\n", (int)ref_element.size());
-        // printf("Split db[end] size: %d\n", (int)((split_db[split_db.size() - 1]).size()));
-
+        // split_db.push_back(plain_decom);
         current_plaintexts++;
     }
 
@@ -165,10 +162,29 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         Plaintext plain;
         vector_to_plaintext(padding, plain);
         std::pmr::vector<uint64_t *> plain_decom;
-        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom, next_data_section);
-        next_data_section += decomp_size * coeff_count * coeff_mod_count;
+        plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
-        split_db.push_back(plain_decom);
+        for (int d = 0; d < decomp_size; d++) {
+            split_db_file.write((char*)plain_decom[d], coeff_count * coeff_mod_count * sizeof(uint64_t));
+            free(plain_decom[d]);
+        }
+        // split_db_file.flush();
+        // split_db.push_back(plain_decom);
+    }
+
+    split_db_file.close();
+
+    int split_db_fd = open("split_db.db", O_RDONLY | O_LARGEFILE, S_IRWXU);
+    if (split_db_fd == -1) {
+        printf("File open failed with error: %s\n", strerror(errno));
+        throw std::runtime_error("File open failed");
+    }
+
+    split_db_data = (uint64_t*) mmap(NULL, split_db_data_size, PROT_READ, MAP_SHARED, split_db_fd, 0);
+    if (split_db_data == MAP_FAILED) {
+        printf("Tried to allocate %ld bytes\n", split_db_data_size);
+        printf("Mapping failed with error %s\n", strerror(errno));
+        throw std::runtime_error("Mapping failed");
     }
 }
 
@@ -268,7 +284,8 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
         for (uint64_t k = 0; k < product; k++) {
 
             first_dim_intermediate_cts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-            poc_nfllib_external_product(list_enc[0], split_db[k], newcontext_, decomp_size, first_dim_intermediate_cts[k],1);
+            std::pmr::vector<uint64_t *> split_db_k = get_split_db_at(k);
+            poc_nfllib_external_product(list_enc[0], split_db_k, newcontext_, decomp_size, first_dim_intermediate_cts[k],1);
 
             for (uint64_t j = 1; j < n_i; j++) {
 
@@ -281,7 +298,8 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
                 temp.resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
 
                 auto expand_start = high_resolution_clock::now();
-                poc_nfllib_external_product(list_enc[j], split_db[k + j * product], newcontext_, decomp_size, temp,1);
+                std::pmr::vector<uint64_t *> split_db_k_j = get_split_db_at(k + j * product);
+                poc_nfllib_external_product(list_enc[j], split_db_k_j, newcontext_, decomp_size, temp,1);
                 auto expand_end  = high_resolution_clock::now();
 
                 evaluator_->add_inplace(first_dim_intermediate_cts[k], temp); // Adds to first component.
@@ -520,7 +538,8 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
         for (uint64_t k = 0; k < product; k++) {
 
             first_dim_intermediate_cts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-            poc_nfllib_external_product(list_enc[0], split_db[k], newcontext_, decomp_size, first_dim_intermediate_cts[k],1);
+            std::pmr::vector<uint64_t *> split_db_k = get_split_db_at(k);
+            poc_nfllib_external_product(list_enc[0], split_db_k, newcontext_, decomp_size, first_dim_intermediate_cts[k],1);
 
             for (uint64_t j = 1; j < n_i; j++) {
 
@@ -533,7 +552,8 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
                 temp.resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
 
 
-                poc_nfllib_external_product(list_enc[j], split_db[k + j * product], newcontext_, decomp_size, temp,1);
+                std::pmr::vector<uint64_t *> split_db_k_j = get_split_db_at(k + j * product);
+                poc_nfllib_external_product(list_enc[j], split_db_k_j, newcontext_, decomp_size, temp,1);
 
 
                 evaluator_->add_inplace(first_dim_intermediate_cts[k], temp); // Adds to first component.

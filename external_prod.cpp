@@ -185,7 +185,7 @@ void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALC
                 res = (std::uint64_t *) calloc((coeff_count * coeff_mod_count), sizeof(uint64_t)); //we are allocating larger space to cater for ct modulus later
             } else {
                 res = current_preallocated;
-                current_preallocated += coeff_count * coeff_mod_count;
+                current_preallocated += (coeff_count * coeff_mod_count);
             }
             
             const int shift_amount = ((total_bits) - ((p + 1) * base_bit));
