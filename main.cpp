@@ -986,6 +986,7 @@ int main(int argc, char *argv[]) {
             }
             db_file.write((char*)row, size_per_item);
             db_copy_file.write((char*)row, size_per_item);
+            free(row);
         }
         db_file.close();
         db_copy_file.close();   
