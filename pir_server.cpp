@@ -45,6 +45,45 @@ std::pmr::vector<uint64_t *> pir_server::get_split_db_at(uint64_t index) {
     return indexed;
 }
 
+void pir_server::set_database_from_file(std::uint64_t ele_num, std::uint64_t ele_size) {
+    u_int64_t logt = params_.plain_modulus().bit_count();
+    uint32_t N = params_.poly_modulus_degree();
+    // number of FV plaintexts needed to represent all elements
+    uint64_t total = plaintexts_per_db(logt, N, ele_num, ele_size);
+    int decomp_size = params_.plain_modulus().bit_count() / pir_params_.plain_base;
+
+    const auto &context_data2 = newcontext_->first_context_data();
+    auto &parms2 = context_data2->parms();
+    auto &coeff_modulus = parms2.coeff_modulus();
+    size_t coeff_mod_count = coeff_modulus.size();
+    size_t coeff_count = parms2.poly_modulus_degree();
+
+     // number of FV plaintexts needed to create the d-dimensional matrix
+    uint64_t prod = 1;
+    for (uint32_t i = 0; i < pir_params_.nvec.size(); i++) {
+        prod *= pir_params_.nvec[i];
+    }
+
+    uint64_t matrix_plaintexts = prod;
+    assert(total <= matrix_plaintexts);
+
+
+    size_t split_db_data_elements = matrix_plaintexts * decomp_size * coeff_count * coeff_mod_count;
+    split_db_data_size = split_db_data_elements * sizeof(uint64_t);
+
+    int split_db_fd = open("split_db.db", O_RDONLY | O_LARGEFILE, S_IRWXU);
+    if (split_db_fd == -1) {
+        printf("File open failed with error: %s\n", strerror(errno));
+        throw std::runtime_error("File open failed");
+    }
+
+    split_db_data = (uint64_t*) mmap(NULL, split_db_data_size, PROT_READ, MAP_SHARED, split_db_fd, 0);
+    if (split_db_data == MAP_FAILED) {
+        printf("Tried to allocate %ld bytes\n", split_db_data_size);
+        printf("Mapping failed with error %s\n", strerror(errno));
+        throw std::runtime_error("Mapping failed");
+    }
+}
 
 void
 pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &bytes, std::uint64_t ele_num, std::uint64_t ele_size) {

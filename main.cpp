@@ -905,9 +905,10 @@ int main(int argc, char *argv[]) {
     uint64_t number_of_items = 1<<14;
     uint64_t size_per_item = 30000; // in bytes
     uint32_t N = 4096;
+    bool use_file = false;
 
     int opt;
-    while ((opt = getopt(argc, argv, "n:s:")) != -1) {
+    while ((opt = getopt(argc, argv, "n:s:f")) != -1) {
         switch(opt) {
             case 'n':
                 number_of_items = 1 << atoi(optarg);
@@ -915,8 +916,12 @@ int main(int argc, char *argv[]) {
             case 's':
                 size_per_item = atoi(optarg);
                 break;
+            case 'f':
+                // If use_file is set, your size_per_item is used and number_of_items is calculated
+                use_file = true;
+                break;
             default: /* '?' */
-                fprintf(stderr, "Usage: %s [-n log_num_items] [-s size_per_item]\n",
+                fprintf(stderr, "Usage: %s [-n log_num_items] [-s size_per_item] [-f]\n",
                         argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -952,32 +957,39 @@ int main(int argc, char *argv[]) {
     cout << "Main: Initializing the database (this may take some time) ..." << endl;
 
 
-
-    // Create test database
-    ofstream db_file;
-    db_file.open("db.db", ios::binary | ios::trunc);
-
-    // Copy of the database. We use this at the end to make sure we retrieved
-    // the correct element. 
-    ofstream db_copy_file;
-    db_copy_file.open("db_copy.db", ios::binary | ios::trunc);
-
     random_device rd;
-    uint64_t page_size = sysconf(_SC_PAGE_SIZE);
 
-    for (uint64_t i = 0; i < number_of_items; i++) {
-        // printf("Page %ld/%ld\n", i * size_per_item/page_size, number_of_items * size_per_item/page_size);
-        // printf("%ld bytes/%ld\n", i * size_per_item, number_of_items * size_per_item);
-        // prin tf("%ld/%ld\n", i+1, number_of_items);
-        uint8_t* row = new uint8_t[size_per_item];
-        for (uint64_t j = 0; j < size_per_item; j++) {
-            row[j] = i + j;
+    if (use_file) {
+        ifstream db_file;
+        db_file.open("db.db", ios::ate | ios::binary);
+        size_t total_size = db_file.tellg();
+        db_file.close();
+
+        number_of_items = total_size / (sizeof(uint8_t) *  size_per_item);
+    } else {
+        // Create test database
+        ofstream db_file;
+        db_file.open("db.db", ios::binary | ios::trunc);
+
+        // Copy of the database. We use this at the end to make sure we retrieved
+        // the correct element. 
+        ofstream db_copy_file;
+        db_copy_file.open("db_copy.db", ios::binary | ios::trunc);
+
+        for (uint64_t i = 0; i < number_of_items; i++) {
+            // printf("Page %ld/%ld\n", i * size_per_item/page_size, number_of_items * size_per_item/page_size);
+            // printf("%ld bytes/%ld\n", i * size_per_item, number_of_items * size_per_item);
+            // prin tf("%ld/%ld\n", i+1, number_of_items);
+            uint8_t* row = new uint8_t[size_per_item];
+            for (uint64_t j = 0; j < size_per_item; j++) {
+                row[j] = i + j;
+            }
+            db_file.write((char*)row, size_per_item);
+            db_copy_file.write((char*)row, size_per_item);
         }
-        db_file.write((char*)row, size_per_item);
-        db_copy_file.write((char*)row, size_per_item);
+        db_file.close();
+        db_copy_file.close();   
     }
-    db_file.close();
-    db_copy_file.close();
 
     size_t size = sizeof(uint8_t) * number_of_items * size_per_item;
     MmapDeleter mmap_deleter(size);
@@ -1010,7 +1022,11 @@ int main(int argc, char *argv[]) {
     server.set_galois_key(0, galois_keys);
 
     auto time_pre_s = high_resolution_clock::now();
-    server.set_database(move(db), number_of_items, size_per_item);
+    if (use_file) {
+        server.set_database_from_file(number_of_items, size_per_item);
+    } else {
+        server.set_database(move(db), number_of_items, size_per_item);
+    }
     auto time_pre_e = high_resolution_clock::now();
     auto time_pre_us = duration_cast<microseconds>(time_pre_e - time_pre_s).count();
 
