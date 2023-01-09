@@ -71,7 +71,7 @@ test_external_prod_with_sk(Evaluator &evaluator1, Encryptor &encryptor1, Decrypt
     cout << "-----------------------------------------------" << endl;
     cout << "Noise budget before external product=" << decryptor1.invariant_noise_budget(test_rlwe_ct) << endl;
 
-    std::pmr::vector<uint64_t *> rlwe_decom;
+    std::vector<uint64_t *> rlwe_decom;
 
 
     int duration = 0;
@@ -161,7 +161,7 @@ void test_external_prod(Evaluator &evaluator1, Encryptor &encryptor1, Decryptor 
     cout << "-----------------------------------------------" << endl;
     cout << "Noise budget before external product=" << decryptor1.invariant_noise_budget(test_rlwe_ct) << endl;
 
-    std::pmr::vector<uint64_t *> rlwe_decom;
+    std::vector<uint64_t *> rlwe_decom;
 
 
     int duration = 0;
@@ -320,7 +320,7 @@ void test_gsw_expansion(Evaluator &evaluator1, Encryptor &encryptor1, Decryptor 
     encryptor1.encrypt_symmetric(test_rlwe_pt, test_rlwe_ct);
 
     ///steps to crt-compose -> baseB-decompose -> crt-decompose
-    std::pmr::vector<uint64_t *> rlwe_decom;
+    std::vector<uint64_t *> rlwe_decom;
     rwle_decompositions(test_rlwe_ct, context, l, base_bit, rlwe_decom);
     poc_nfllib_ntt_rlwe_decomp(rlwe_decom);
 
@@ -435,7 +435,7 @@ test_homomorphic_permutation(Evaluator &evaluator1, Encryptor &encryptor1, Decry
     encryptor1.encrypt_symmetric(test_rlwe_pt, test_rlwe_ct);
 
     ///steps to crt-compose -> baseB-decompose -> crt-decompose
-    std::pmr::vector<uint64_t *> rlwe_decom;
+    std::vector<uint64_t *> rlwe_decom;
     rwle_decompositions(test_rlwe_ct, context, l, base_bit, rlwe_decom);
     poc_nfllib_ntt_rlwe_decomp(rlwe_decom);
 
@@ -516,7 +516,7 @@ void test_plain_expansion(Evaluator &evaluator1, Encryptor &encryptor1, Decrypto
     auto gsw_enc_time_end = std::chrono::steady_clock::now();
 
 
-    std::pmr::vector<uint64_t *> plain_decom;
+    std::vector<uint64_t *> plain_decom;
     plain_decompositions(pt, context, decomp_size, base_bits, plain_decom);
 
 
@@ -657,7 +657,7 @@ void test_plain_flatening(Evaluator &evaluator1, Encryptor &encryptor1, Decrypto
 
 
 
-    std::pmr::vector<uint64_t *> plain_decom;
+    std::vector<uint64_t *> plain_decom;
     plain_decompositions(pt, context, decomp_size, base_bits, plain_decom);
 
 
@@ -735,7 +735,7 @@ void test_external_prod_chain(Evaluator &evaluator1, Encryptor &encryptor1, Decr
     encryptor1.encrypt_symmetric(test_rlwe_pt, test_rlwe_ct);
 
     ///steps to crt-compose -> baseB-decompose -> crt-decompose
-    std::pmr::vector<uint64_t *> rlwe_decom;
+    std::vector<uint64_t *> rlwe_decom;
     rwle_decompositions(test_rlwe_ct, context, lvl, base_bits, rlwe_decom);
 
     Ciphertext res_ct;
@@ -759,7 +759,7 @@ void test_external_prod_chain(Evaluator &evaluator1, Encryptor &encryptor1, Decr
         decryptor1.decrypt(res_ct, pp);
         cout << "Noise budget after " << i << " external product " << decryptor1.invariant_noise_budget(res_ct) << endl;
 
-        std::pmr::vector<uint64_t *> rlwe_decom;
+        std::vector<uint64_t *> rlwe_decom;
         rwle_decompositions(res_ct, context, lvl, base_bits, rlwe_decom);
 
         poc_nfllib_external_product(choice_bit, rlwe_decom, context, lvl, res_ct, 1);
@@ -976,17 +976,16 @@ int main(int argc, char *argv[]) {
         ofstream db_copy_file;
         db_copy_file.open("db_copy.db", ios::binary | ios::trunc);
 
+        uint8_t row[size_per_item];
         for (uint64_t i = 0; i < number_of_items; i++) {
             // printf("Page %ld/%ld\n", i * size_per_item/page_size, number_of_items * size_per_item/page_size);
             // printf("%ld bytes/%ld\n", i * size_per_item, number_of_items * size_per_item);
             // prin tf("%ld/%ld\n", i+1, number_of_items);
-            uint8_t* row = new uint8_t[size_per_item];
             for (uint64_t j = 0; j < size_per_item; j++) {
                 row[j] = i + j;
             }
             db_file.write((char*)row, size_per_item);
             db_copy_file.write((char*)row, size_per_item);
-            free(row);
         }
         db_file.close();
         db_copy_file.close();   
@@ -1062,7 +1061,7 @@ int main(int argc, char *argv[]) {
     Plaintext rep= client.decrypt_result(reply);
 
     // Convert from FV plaintext (polynomial) to database element at the client
-    std::pmr::vector<uint8_t> elems(N * logt / 8);
+    std::vector<uint8_t> elems(N * logt / 8);
     coeffs_to_bytes(logt, rep, elems.data(), (N * logt) / 8);
 
     // Check that we retrieved the correct element

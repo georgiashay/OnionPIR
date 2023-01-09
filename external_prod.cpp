@@ -119,7 +119,7 @@ void poc_multiply_add_plain_without_scaling_variant(const Plaintext &plain, cons
 
 void
 rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, const uint64_t l, const uint64_t base_bit,
-                    std::pmr::vector<uint64_t *> &rlwe_decom) {
+                    std::vector<uint64_t *> &rlwe_decom) {
     const auto &context_data2 = context->first_context_data();
     auto &parms2 = context_data2->parms();
     auto &coeff_modulus = parms2.coeff_modulus();
@@ -150,7 +150,7 @@ rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, const
 }
 
 void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALContext> context,
-                        std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool,
+                        std::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool,
                         uint64_t* preallocated_mem) {
     // if preallocated_mem is provided, must be able to hold pt_poly_count * r_l * coeff_count * coeff_mod_count
     // and must be initialized to 0s
@@ -213,7 +213,7 @@ void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALC
 
 void
 plain_decompositions(Plaintext &pt, shared_ptr<SEALContext> &context, const uint64_t decomp_size, const uint64_t base_bit,
-                     std::pmr::vector<uint64_t *> &plain_decom, uint64_t* preallocated_mem) {
+                     std::vector<uint64_t *> &plain_decom, uint64_t* preallocated_mem) {
 
     // if preallocated_mem is provided, must be able to hold pt_poly_coumt * decomp_size * coeff_count * coeff_mod_count
     // and be initialized to 0s
@@ -250,7 +250,7 @@ plain_decompositions(Plaintext &pt, shared_ptr<SEALContext> &context, const uint
 }
 
 void poc_decomp_rlwe128(Ciphertext ct, const uint64_t l, shared_ptr<SEALContext> context,
-                        std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
+                        std::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
 
     assert(vec_ciphertexts.size() == 0);
     const uint64_t base = UINT64_C(1) << base_bit;
@@ -504,6 +504,8 @@ void poc_expand_flat(vector<GSWCiphertext>::iterator &result, vector<Ciphertext>
     vector<Ciphertext> expanded_ciphers(coeff_count);
 
     //outloop is from 0-to-(l-1)
+
+    // Loop over ciphertexts of m, 2m, ... 2^(l-1)*m
     for (int i = 0; i < packed_swap_bits.size(); i++) {
         auto rlwe_start = std::chrono::high_resolution_clock::now();
         expanded_ciphers = poc_rlwe_expand(packed_swap_bits[i], context, galkey, size);
@@ -674,6 +676,8 @@ vector<Ciphertext> poc_rlwe_expand(Ciphertext packedquery, shared_ptr<SEALContex
     vector<Ciphertext> temp;
     Ciphertext tmp;
     temp.push_back(packedquery);
+
+    // Size is number of ciphertexts to expand into
     int numIters = ceil(log2(size));   // size is a ---rlwe---power of 2.
 
 
@@ -874,7 +878,7 @@ void poc_nfllib_ntt_ct(Ciphertext &ct , shared_ptr<SEALContext> &context){
     }
 }
 
-void poc_nfllib_ntt_rlwe_decomp(std::pmr::vector<uint64_t *> &rlwe_expansion){
+void poc_nfllib_ntt_rlwe_decomp(std::vector<uint64_t *> &rlwe_expansion){
 
 
 
@@ -998,7 +1002,7 @@ void poc_nfllib_plain_ct_prod(Ciphertext &ct , Plaintext &pt,
 
 }
 
-void poc_nfllib_external_product(vector<Ciphertext> &gsw_enc, std::pmr::vector<uint64_t *> &rlwe_expansion,
+void poc_nfllib_external_product(vector<Ciphertext> &gsw_enc, std::vector<uint64_t *> &rlwe_expansion,
                                  shared_ptr<SEALContext> &context, int l, Ciphertext &res_ct, int is_reusable=1) {
 
     //assert(gsw_enc.size()==l);
@@ -1333,7 +1337,7 @@ void poc_expand_flat_threaded(vector<GSWCiphertext>::iterator &result, vector<Ci
     int k=0;
     for(auto& th: threads){
         th.join();
-        // std::pmr::vector<uint64_t *> rlwe_decom;
+        // std::vector<uint64_t *> rlwe_decom;
         for (int j = 0; j < size; j++) {
             ///put jth expanded ct in ith idx slot  of jt gswct
             result[j][k] = threaded_expanded_ciphers[k][j];
@@ -1575,7 +1579,7 @@ void thread_server_expand(vector<GSWCiphertext>::iterator &result, vector<Cipher
         expanded_ciphers = poc_rlwe_expand(packed_swap_bits[i], context, galkey, size);
 
 
-        std::pmr::vector<uint64_t *> rlwe_decom;
+        std::vector<uint64_t *> rlwe_decom;
 
         for (int j = 0; j < size; j++) {
 
@@ -1640,7 +1644,7 @@ void gsw_server_expand_combined(vector<GSWCiphertext>::iterator &result, vector<
         //expanded_ciphers = poc_rlwe_expand(packed_swap_bits[i], context, galkey, size);
 
 
-        std::pmr::vector<uint64_t *> rlwe_decom;
+        std::vector<uint64_t *> rlwe_decom;
 
         for (int j = 0; j < total_dim_size; j++) {
 
@@ -1862,7 +1866,7 @@ rlweExpand(Ciphertext packedquery, shared_ptr<SEALContext> context, seal::Galois
     return temp;
 }
 
-void my_poc_nfllib_external_product(vector<Ciphertext> gsw_enc, std::pmr::vector<uint64_t *> &rlwe_expansion,
+void my_poc_nfllib_external_product(vector<Ciphertext> gsw_enc, std::vector<uint64_t *> &rlwe_expansion,
                                  shared_ptr<SEALContext> context, int l, Ciphertext &res_ct, int is_reusable) {
 
     const auto &context_data = context->get_context_data(gsw_enc[0].parms_id());
@@ -1981,7 +1985,7 @@ void set_ciphertext(Ciphertext &ct, shared_ptr<SEALContext> context) {
 
 void
 my_rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, const uint64_t l, const uint64_t base_bit,
-                       std::pmr::vector<uint64_t *> &rlwe_decom) {
+                       std::vector<uint64_t *> &rlwe_decom) {
     const auto &context_data2 = context->first_context_data();
     auto &parms2 = context_data2->parms();
     auto &coeff_modulus = parms2.coeff_modulus();
@@ -2011,7 +2015,7 @@ my_rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, co
 }
 
 void my_poc_decomp_rlwe128(Ciphertext ct, const uint64_t l, shared_ptr<SEALContext> context,
-                           std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
+                           std::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool) {
     assert(vec_ciphertexts.size() == 0);
     const uint64_t base = UINT64_C(1) << base_bit;
     const uint64_t mask = base - 1;

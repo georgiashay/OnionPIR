@@ -66,3 +66,6 @@ onionpir
 
 
 *.db
+callgrind.out.*
+massif.out.*
+*.svg

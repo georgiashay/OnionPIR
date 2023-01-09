@@ -32,7 +32,7 @@ public:
     PirReply generate_reply(PirQuery query, uint32_t client_id, SecretKey sk);
     PirReply generate_reply_combined(PirQuery query, uint32_t client_id, SecretKey sk);
     void set_enc_sk(GSWCiphertext sk_enc);
-    std::pmr::vector<uint64_t *> get_split_db_at(uint64_t index);
+    std::vector<uint64_t *> get_split_db_at(uint64_t index);
     ~pir_server();
 
 private:

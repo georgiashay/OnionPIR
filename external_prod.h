@@ -49,7 +49,7 @@ const std::uint64_t coeff_mod_count);
 
 void poly_nfllib_add(std::uint64_t *p1, std::uint64_t *p2, std::uint64_t *res);
 
-void poc_nfllib_ntt_rlwe_decomp(std::pmr::vector<uint64_t *> &rlwe_expansion);
+void poc_nfllib_ntt_rlwe_decomp(std::vector<uint64_t *> &rlwe_expansion);
 
 void poc_nfllib_ntt_gsw(vector<Ciphertext> &gsw_enc, shared_ptr<SEALContext> &context);
 
@@ -63,10 +63,10 @@ void poc_nfllib_plain_ct_prod(Ciphertext &ct , Plaintext &pt,
 
 void
 plain_decompositions(Plaintext &pt, shared_ptr<SEALContext> &context, const uint64_t decomp_size, const uint64_t base_bit,
-                     std::pmr::vector<uint64_t *> &plain_decom, uint64_t* preallocated_mem = nullptr);
+                     std::vector<uint64_t *> &plain_decom, uint64_t* preallocated_mem = nullptr);
 
 void poc_decomp_plain(Plaintext pt, const uint64_t decomp_size, shared_ptr<SEALContext> context,
-                      std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool,
+                      std::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool,
                       uint64_t* preallocated_mem = nullptr);
 
 void poc_plain_gsw_enc128(const uint64_t decomp_size, const uint64_t base_bit, shared_ptr<SEALContext> context,
@@ -97,7 +97,7 @@ void poc_expand_flat_threaded(vector<GSWCiphertext>::iterator &result, vector<Ci
                      shared_ptr<SEALContext> context, int size, seal::GaloisKeys &galkey);
 
 void rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, const uint64_t l, const uint64_t base_bit,
-                         std::pmr::vector<uint64_t *> &rlwe_decom);
+                         std::vector<uint64_t *> &rlwe_decom);
 
 void multiply_power_of_X(const Ciphertext &encrypted, Ciphertext &destination,
                          uint32_t index, shared_ptr<SEALContext> context);
@@ -178,16 +178,16 @@ void my_decompose_array(uint64_t *value, size_t count, std::vector<Modulus> coef
                         MemoryPoolHandle pool);
 
 void my_poc_decomp_rlwe128(Ciphertext ct, const uint64_t l, shared_ptr<SEALContext> context,
-                        std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool);
+                        std::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool);
 void
 my_rwle_decompositions(Ciphertext rlwe_ct_1, shared_ptr<SEALContext> context, const uint64_t l, const uint64_t base_bit,
-                    std::pmr::vector<uint64_t *> &rlwe_decom);
+                    std::vector<uint64_t *> &rlwe_decom);
 
 void set_ciphertext(Ciphertext &ct, shared_ptr<SEALContext> context);
 vector<Ciphertext>
 rlweExpand(Ciphertext packedquery, shared_ptr<SEALContext> context, seal::GaloisKeys galkey, uint64_t size);
 
-void my_poc_nfllib_external_product(vector<Ciphertext> gsw_enc, std::pmr::vector<uint64_t *> &rlwe_expansion,
+void my_poc_nfllib_external_product(vector<Ciphertext> gsw_enc, std::vector<uint64_t *> &rlwe_expansion,
                                  shared_ptr<SEALContext> context,
                                  int l, Ciphertext &res_ct, int is_reusable=1);
 
@@ -228,7 +228,7 @@ void poc_multiply_add_plain_without_scaling_variant_sk(
  * @param pool
  */
 void poc_decomp_rlwe128(Ciphertext ct, const uint64_t l, shared_ptr<SEALContext> context,
-                        std::pmr::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool);
+                        std::vector<uint64_t *> &vec_ciphertexts, int base_bit, seal::util::MemoryPool &pool);
 
 
 
@@ -241,7 +241,7 @@ void poc_decomp_rlwe128(Ciphertext ct, const uint64_t l, shared_ptr<SEALContext>
  * @param res_ct - output ciphertext
  * @param is_reusable - reuse nTT conversion
  */
-void poc_nfllib_external_product(vector<Ciphertext> &gsw_enc, std::pmr::vector<uint64_t *> &rlwe_expansion,
+void poc_nfllib_external_product(vector<Ciphertext> &gsw_enc, std::vector<uint64_t *> &rlwe_expansion,
                                  shared_ptr<SEALContext> &context,
                                  int l, Ciphertext &res_ct, int is_reusable);
 
