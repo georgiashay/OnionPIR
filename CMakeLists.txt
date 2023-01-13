@@ -39,7 +39,7 @@ if(NFL_OPTIMIZED)
 endif()
 
 
-add_executable(onionpir main.cpp external_prod.h external_prod.cpp waksman.h waksman.cpp util.h  pir_server.h pir_server.cpp pir.cpp pir.h pir_client.cpp pir_client.h)
+add_executable(onionpir main.cpp external_prod.h external_prod.cpp waksman.h waksman.cpp util.h tools.h tools.cpp pir_server.h pir_server.cpp pir.cpp pir.h pir_client.cpp pir_client.h)
 
 target_link_libraries(onionpir PRIVATE SEAL::seal)
 #for mac

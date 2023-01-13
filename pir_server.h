@@ -8,7 +8,7 @@
 #include "external_prod.h"
 #include "pir.h"
 #include "pir_client.h"
-
+#include "tools.h"
 
 #ifndef EXTERNAL_PROD_PIR_SERVER_H
 #define EXTERNAL_PROD_PIR_SERVER_H

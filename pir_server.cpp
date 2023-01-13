@@ -36,10 +36,6 @@ std::vector<uint64_t *> pir_server::get_split_db_at(uint64_t index) {
 
     std::vector<uint64_t*> indexed;
     for (int i = 0; i < decomp_size; i++) {
-        // TODO: this gets the wrong index for i = 1 
-        // specifically seems to be 4096 values off (one coeff_mod_count)
-        // ?? confusion
-        // possibly an error with using preallocated mem and doing bad pointer arithmetic there?
         indexed.push_back(split_db_data + (((index * decomp_size) + i) * coeff_count * coeff_mod_count));
     }
     return indexed;
@@ -229,10 +225,17 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
     }
 
     free(decomp_space);
+
+    // // Preload pages from disk
+    // std::uint64_t temp;
+    // for (int i = 0; i < split_db_data_elements; i++) {
+    //     temp += split_db_data[i];
+    // }
+    // printf("Sum: %ld\n", temp);
+    // printf("Data size: %ld\n", split_db_data_size);
 }
 
 PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKey sk) {
-
     assert(query.size()==2);
 
     Decryptor dec(newcontext_,sk);
@@ -486,6 +489,8 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
 
 
 PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id, SecretKey sk) {
+    DiskTracker disk_tracker(100);
+    disk_tracker.start();
 
     assert(query.size()==2);
 
@@ -745,6 +750,9 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
     auto Total_end  = high_resolution_clock::now();
     durrr =  duration_cast<milliseconds>(Total_end - Total_start).count();
 //    cout << "Total" << durrr  << endl;
+
+    disk_tracker.stop();
+    disk_tracker.print_stats();
 
     return first_dim_intermediate_cts;
 }
