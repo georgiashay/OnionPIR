@@ -45,6 +45,8 @@ double get_time_us(T const& start, T const& end, uint32_t N)
 
 std::uint64_t get_page_faults();
 
+std::uint64_t get_io_delay_ticks();
+
 struct MmapDeleter {
     private:
         size_t size;
@@ -62,11 +64,14 @@ class DiskTracker {
 		std::atomic_bool running;
 		std::thread run_thread;
 		std::uint64_t runtime;
+		std::uint64_t io_delay_ticks;
 
 		void loop() {
 			auto start_time = high_resolution_clock::now();
 			auto last_time = start_time;
 			std::uint64_t last_page_faults = get_page_faults();
+			std::uint64_t last_io_delay_ticks = get_io_delay_ticks();
+			printf("Last io delay ticks: %ld\n", last_io_delay_ticks);
 
 			while (running) {
 				auto current_time = high_resolution_clock::now();
@@ -84,8 +89,13 @@ class DiskTracker {
 				std::uint64_t new_page_faults = current_page_faults - last_page_faults;
 				page_faults.push_back(new_page_faults);
 			}
+
+			std::uint64_t current_io_delay_ticks = get_io_delay_ticks();
+			io_delay_ticks = current_io_delay_ticks - last_io_delay_ticks;
+
 			auto end_time = high_resolution_clock::now();
 			runtime = duration_cast<milliseconds>(end_time - start_time).count();
+			
 		}
 
 
@@ -121,6 +131,14 @@ class DiskTracker {
 
 			std::uint64_t average_bytes_per_second = (sum_page_faults * page_size * 1000)/runtime;
 			std::uint64_t max_bytes_per_second = (max_page_faults * page_size * 1000)/std::min(interval_ms, runtime);
+			
+			printf("Disk statistics:\n");
+
+			printf("Runtime: %ld ms\n", runtime);
+
+			std::uint64_t io_delay_ms = (io_delay_ticks * 1000) / sysconf(_SC_CLK_TCK);
+			printf("IO Delay: %ld ms\n", io_delay_ms);
+			printf("IO Delay ticks: %ld\n", io_delay_ticks);
 
 			printf("Total page faults disk tracker: %ld\n", sum_page_faults);
 
@@ -135,7 +153,6 @@ class DiskTracker {
 				printf("Page faults: %ld GB\n", page_fault_bytes >> 30);
 			}
 
-			printf("Disk statistics:\n");
 			if (average_bytes_per_second < (1 << 10)) {
 				printf("Average: %ld B/s\n", average_bytes_per_second);
 			} else if (average_bytes_per_second < (1 << 20)) {

@@ -17,6 +17,23 @@ std::uint64_t get_page_faults() {
 	return std::stoi(pf_string);
 }
 
+std::uint64_t get_io_delay_ticks() {
+	std::ifstream stat_file; 
+	stat_file.open("/proc/self/stat");
+ 
+	std::vector<std::string> stat_vector;
+    std::string s;
+    while (std::getline(stat_file, s, ' ')) {
+        stat_vector.push_back(s);
+    }
+
+    stat_file.close();
+
+	std::string pf_string = stat_vector[41];
+
+	return std::stoi(pf_string);
+}
+
 MmapDeleter::MmapDeleter(size_t size) {
     this->size = size;
 }
