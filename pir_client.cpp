@@ -216,7 +216,7 @@ PirQuery pir_client::generate_query_combined(uint64_t desiredIndex) {
     //compute_inverse_scales();
     GSWCiphertext packed_ct;
     uint64_t dimension_size=FIRST_DIM;
-    int new_dimension_size=0;
+    uint64_t new_dimension_size=0;
 
     int logsize;
     int gap ;
@@ -233,7 +233,7 @@ PirQuery pir_client::generate_query_combined(uint64_t desiredIndex) {
 
     //handling first dimension first
     for (uint32_t i = 0; i < 1; i++) {
-        uint32_t num_ptxts = ceil( (pir_params_.nvec[i] + 0.0) / N);//mostly 1
+        uint64_t num_ptxts = ceil( (pir_params_.nvec[i] + 0.0) / N);//mostly 1
 
         cout << "Client: index " << i+1  << "/ " << indices_.size() << " = " << indices_[i] << endl;
 
@@ -243,7 +243,7 @@ PirQuery pir_client::generate_query_combined(uint64_t desiredIndex) {
         // initialize result.
 
 
-        for (uint32_t j =0; j < num_ptxts; j++){
+        for (uint64_t j =0; j < num_ptxts; j++){
             pt.set_zero();
             if (indices_[i] > N*(j+1) || indices_[i] < N*j){
 

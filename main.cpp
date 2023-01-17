@@ -1031,6 +1031,7 @@ int main(int argc, char *argv[]) {
     auto time_pre_us = duration_cast<microseconds>(time_pre_e - time_pre_s).count();
 
     uint64_t ele_index = rd() % number_of_items; // element in DB at random position
+
     //uint64_t ele_index =20;
     uint64_t index = client.get_fv_index(ele_index, size_per_item);   // index of FV plaintext
     uint64_t offset = client.get_fv_offset(ele_index, size_per_item);

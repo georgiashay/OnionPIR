@@ -124,7 +124,7 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
     cout << "Server: total number of FV plaintext = " << total << endl;
     cout << "Server: elements packed into each plaintext " << ele_per_ptxt << endl;
 
-    uint32_t offset = 0;
+    uint64_t offset = 0;
 
     uint64_t current_plaintexts = 0;
 
@@ -506,8 +506,8 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
 
 
 PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id, SecretKey sk) {
-    DiskTracker disk_tracker(100);
-    disk_tracker.start();
+    // DiskTracker disk_tracker(100);
+    // disk_tracker.start();
 
     assert(query.size()==2);
 
@@ -768,8 +768,8 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
     durrr =  duration_cast<milliseconds>(Total_end - Total_start).count();
 //    cout << "Total" << durrr  << endl;
 
-    disk_tracker.stop();
-    disk_tracker.print_stats();
+    // disk_tracker.stop();
+    // disk_tracker.print_stats();
 
     return first_dim_intermediate_cts;
 }
