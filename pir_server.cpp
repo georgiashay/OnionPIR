@@ -103,9 +103,7 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         prod *= pir_params_.nvec[i];
     }
 
-    // Columns, to turn into rows for consecutive access of db
-    uint64_t rows = prod / pir_params_.nvec[0];
-    uint64_t cols = pir_params_.nvec[0];
+
 
     uint64_t matrix_plaintexts = prod;
     assert(total <= matrix_plaintexts);
@@ -175,13 +173,6 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
 
-        // This is backwards from normal since we are doing a transform
-        std::uint64_t row = i % rows;
-        std::uint64_t col = i / rows;
-
-        std::uint64_t seek_location = (row * cols + col) * (decomp_size * coeff_count * coeff_mod_count) * sizeof(uint64_t);
-        split_db_file.seekp(seek_location);
-
         for (int d = 0; d < decomp_size; d++) {
             split_db_file.write((char*)plain_decom[d], coeff_count * coeff_mod_count * sizeof(uint64_t));
             free(plain_decom[d]);
@@ -210,13 +201,6 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         std::vector<uint64_t *> plain_decom;
         plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom, decomp_space);
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
-
-        std::uint64_t row = (i + current_plaintexts) % rows;
-        std::uint64_t col = (i + current_plaintexts) / rows;
-
-        std::uint64_t seek_location = (row * cols + col) * (decomp_size * coeff_count * coeff_mod_count) * sizeof(uint64_t);
-        split_db_file.seekp(seek_location);
-
         for (int d = 0; d < decomp_size; d++) {
             split_db_file.write((char*)plain_decom[d], coeff_count * coeff_mod_count * sizeof(uint64_t));
             // free(plain_decom[d]);
@@ -226,7 +210,6 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
     }
 
     split_db_file.close();
-
 
     int split_db_fd = open("split_db.db", O_RDONLY | O_LARGEFILE, S_IRWXU);
     if (split_db_fd == -1) {
@@ -347,7 +330,7 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
         for (uint64_t k = 0; k < product; k++) {
 
             first_dim_intermediate_cts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-            std::vector<uint64_t *> split_db_k = get_split_db_at(k * n_i);
+            std::vector<uint64_t *> split_db_k = get_split_db_at(k);
             poc_nfllib_external_product(list_enc[0], split_db_k, newcontext_, decomp_size, first_dim_intermediate_cts[k],1);
 
             for (uint64_t j = 1; j < n_i; j++) {
@@ -361,7 +344,7 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
                 temp.resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
 
                 auto expand_start = high_resolution_clock::now();
-                std::vector<uint64_t *> split_db_k_j = get_split_db_at(k * n_i + j);
+                std::vector<uint64_t *> split_db_k_j = get_split_db_at(k + j * product);
                 poc_nfllib_external_product(list_enc[j], split_db_k_j, newcontext_, decomp_size, temp,1);
                 auto expand_end  = high_resolution_clock::now();
 
@@ -439,9 +422,6 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
 
         product /= n_i;
         vector<Ciphertext> intermediateCtxts(product);//output size of this dimension
-
-
-
 
         for (uint64_t k = 0; k < product; k++) {
 
@@ -536,6 +516,12 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
 
 
     int N = params_.poly_modulus_degree();
+    
+    const auto &context_data2 = newcontext_->first_context_data();
+    auto &parms2 = context_data2->parms();
+    auto &coeff_modulus = parms2.coeff_modulus();
+    size_t coeff_mod_count = coeff_modulus.size();
+    size_t coeff_count = parms2.poly_modulus_degree();
 
     int logt = params_.plain_modulus().bit_count();
 
@@ -591,43 +577,50 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
 
         product /= n_i;
 
-        vector<Ciphertext> intermediateCtxts(product);
-
-
-
+        uint64_t num_coeff = coeff_count * coeff_mod_count;
 
         int durrr =0;
 
         auto expand_start = high_resolution_clock::now();
-        for (uint64_t k = 0; k < product; k++) {
 
-            first_dim_intermediate_cts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-            std::vector<uint64_t *> split_db_k = get_split_db_at(k * n_i);
-            poc_nfllib_external_product(list_enc[0], split_db_k, newcontext_, decomp_size, first_dim_intermediate_cts[k],1);
+        // 1 x n_i matrix of GSW ciphertexts (2 x 2l matrices)
+        // Will be multiplied with n_i x product matrix (database) of RLWE plaintexts (2l x 1 matrices)
+        uint64_t* queryMatrix = (uint64_t*)malloc(n_i * decomp_size * 2 * num_coeff * sizeof(uint64_t));
+        // Result 1 x product matrix of ciphertexts (2 x 1 matrices)
+        uint64_t* intermediateCiphertexts = (uint64_t*)malloc(product * 2 * num_coeff * sizeof(uint64_t));
 
-            for (uint64_t j = 1; j < n_i; j++) {
-
-                uint64_t total = n_i;
-
-                //cout << "-- expanding one query ctxt into " << total  << " ctxts "<< endl;
-
-
-                Ciphertext temp;
-                temp.resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-
-
-                std::vector<uint64_t *> split_db_k_j = get_split_db_at(k * n_i + j);
-                poc_nfllib_external_product(list_enc[j], split_db_k_j, newcontext_, decomp_size, temp,1);
-
-
-                evaluator_->add_inplace(first_dim_intermediate_cts[k], temp); // Adds to first component.
-                //poc_nfllib_add_ct(first_dim_intermediate_cts[k], temp,newcontext_);
-
-                //cout << "first-dimension cost" << durrr  << endl;
-
-
+        // Copy ciphertext data into matrix pointer
+        for (uint64_t k = 0; k < n_i; k++) {
+            for (uint64_t d = 0; d < decomp_size; d++) {
+                for (uint64_t c = 0; c < 2; c++) {
+                    memcpy((void*)&queryMatrix[k * decomp_size * 2 * num_coeff + c * decomp_size * num_coeff + d * num_coeff], 
+                                        (void*)list_enc[k][d].data(c), num_coeff * sizeof(uint64_t));
+                }
             }
+        }
 
+        // Copy coefficient moduli information into vector
+        std::vector<uint64_t> coeff_moduli;
+        std::vector<uint128_t> m;
+
+        for (int i = 0; i < coeff_modulus.size(); i++) {
+            coeff_moduli.push_back(coeff_modulus[i].value());
+            const uint64_t* const_ratio_ = coeff_modulus[i].const_ratio().data();
+            uint128_t const_ratio = ((uint128_t)(const_ratio_[1]) << 64) + (uint128_t)(const_ratio_[0]);
+            m.push_back(const_ratio);
+        }
+
+        // Do matrix multiplication
+        mul_matrix_matrix_mod(queryMatrix, 1, n_i, 2, decomp_size, split_db_data, n_i, product, decomp_size, 1, 
+                                intermediateCiphertexts, coeff_count, coeff_moduli, m);
+
+
+        // Copy results into ciphertext objects
+        for (uint64_t k = 0; k < product; k++) {
+            first_dim_intermediate_cts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
+            for (uint64_t c = 0; c < 2; c++) {
+                poly_nfllib_add(&intermediateCiphertexts[k * 2 * num_coeff + c * num_coeff], first_dim_intermediate_cts[k].data(c), first_dim_intermediate_cts[k].data(c));
+            }
         }
 
         auto expand_end  = high_resolution_clock::now();

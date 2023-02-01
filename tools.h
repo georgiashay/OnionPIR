@@ -10,8 +10,11 @@
 #include <sstream>
 #include <atomic>
 #include <thread>
+#include <cassert>
 
 using namespace std::chrono;
+typedef unsigned __int128 uint128_t;
+
 
 template <class T, size_t Align, class... Args>
 T* alloc_aligned(size_t n, Args&& ... args)
@@ -46,6 +49,14 @@ double get_time_us(T const& start, T const& end, uint32_t N)
 std::uint64_t get_page_faults();
 
 std::uint64_t get_io_delay_ticks();
+
+void mul_matrix_matrix_mod(uint64_t* A, uint64_t A_rows, uint64_t A_cols, uint64_t A_sub_rows, uint64_t A_sub_cols,
+							uint64_t* B, uint64_t B_rows, uint64_t B_cols, uint64_t B_sub_rows, uint64_t B_sub_cols,
+							uint64_t* result, uint64_t N, std::vector<uint64_t> coeff_moduli, std::vector<uint128_t> m);
+
+uint64_t mulmod(uint64_t a, uint64_t b, uint64_t n, uint128_t m);
+
+uint64_t addmod(uint64_t a, uint64_t b, uint64_t n);
 
 struct MmapDeleter {
     private:
