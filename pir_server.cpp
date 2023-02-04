@@ -523,6 +523,20 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
     size_t coeff_mod_count = coeff_modulus.size();
     size_t coeff_count = parms2.poly_modulus_degree();
 
+    uint64_t num_coeff = coeff_count * coeff_mod_count;
+
+     // Copy coefficient moduli information into vector
+    std::vector<uint64_t> coeff_moduli;
+    std::vector<uint128_t> m;
+
+    for (int i = 0; i < coeff_modulus.size(); i++) {
+        coeff_moduli.push_back(coeff_modulus[i].value());
+        const uint64_t* const_ratio_ = coeff_modulus[i].const_ratio().data();
+        uint128_t const_ratio = ((uint128_t)(const_ratio_[1]) << 64) + (uint128_t)(const_ratio_[0]);
+        m.push_back(const_ratio);
+    }
+
+
     int logt = params_.plain_modulus().bit_count();
 
     vector<Ciphertext> first_dim_intermediate_cts(product/nvec[0]);
@@ -577,14 +591,12 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
 
         product /= n_i;
 
-        uint64_t num_coeff = coeff_count * coeff_mod_count;
-
         int durrr =0;
 
         auto expand_start = high_resolution_clock::now();
 
-        // 1 x n_i matrix of GSW ciphertexts (2 x 2l matrices)
-        // Will be multiplied with n_i x product matrix (database) of RLWE plaintexts (2l x 1 matrices)
+        // 1 x n_i matrix of GSW ciphertexts (2 x l matrices)
+        // Will be multiplied with n_i x product matrix (database) of RLWE plaintexts (l x 1 matrices)
         uint64_t* queryMatrix = (uint64_t*)malloc(n_i * decomp_size * 2 * num_coeff * sizeof(uint64_t));
         // Result 1 x product matrix of ciphertexts (2 x 1 matrices)
         uint64_t* intermediateCiphertexts = (uint64_t*)malloc(product * 2 * num_coeff * sizeof(uint64_t));
@@ -597,17 +609,6 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
                                         (void*)list_enc[k][d].data(c), num_coeff * sizeof(uint64_t));
                 }
             }
-        }
-
-        // Copy coefficient moduli information into vector
-        std::vector<uint64_t> coeff_moduli;
-        std::vector<uint128_t> m;
-
-        for (int i = 0; i < coeff_modulus.size(); i++) {
-            coeff_moduli.push_back(coeff_modulus[i].value());
-            const uint64_t* const_ratio_ = coeff_modulus[i].const_ratio().data();
-            uint128_t const_ratio = ((uint128_t)(const_ratio_[1]) << 64) + (uint128_t)(const_ratio_[0]);
-            m.push_back(const_ratio);
         }
 
         // Do matrix multiplication
@@ -690,6 +691,8 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
     uint64_t durrr =  duration_cast<milliseconds>(expand_end - expand_start).count();
     cout << "Server: expand after first diemension = " << durrr << " ms" << endl;
 
+    vector<Ciphertext> intermediateCtxts = first_dim_intermediate_cts;
+
     auto remaining_start = std::chrono::high_resolution_clock::now();
     //for remaining dimensions we treat them differently
     uint64_t  previous_dim=0;
@@ -698,44 +701,52 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
         uint64_t n_i = nvec[i];
 
         product /= n_i;
-        vector<Ciphertext> intermediateCtxts(product);//output size of this dimension
 
 
+        // 1 x n_i matrix of GSW ciphertexts (2 x 2l matrices)
+        uint64_t* queryMatrix = (uint64_t*)malloc(n_i * 2 * decomp_size * 2 * num_coeff * sizeof(uint64_t));
+        // Will be multiplied with n_i x product matrix (intermediate ciphertexts) of RLWE ciphertexts (2l x 1 matrices)
+        uint64_t* prevIntermediateCiphertexts = (uint64_t*)malloc(n_i * product * 2 * decomp_size * num_coeff * sizeof(uint64_t));
+        // Result 1 x product matrix of ciphertexts (2 x 1 matrices)
+        uint64_t* nextIntermediateCiphertexts = (uint64_t*)malloc(product * 2 * num_coeff * sizeof(uint64_t));
 
-
-        for (uint64_t k = 0; k < product; k++) {
-
-
-            intermediateCtxts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
+        // Decompose intermediate ciphertexts
+        for (uint64_t k = 0; k < product * n_i; k++) {
             std::vector<uint64_t *> rlwe_decom;
-            rwle_decompositions(first_dim_intermediate_cts[k], newcontext_, decomp_size, pir_params_.gsw_base, rlwe_decom);
+            rwle_decompositions(intermediateCtxts[k], newcontext_, decomp_size, pir_params_.gsw_base, rlwe_decom);
             poc_nfllib_ntt_rlwe_decomp(rlwe_decom);
-            poc_nfllib_external_product(CtMuxBits[0 + previous_dim], rlwe_decom, newcontext_, decomp_size, intermediateCtxts[k],1);
-            for (auto p : rlwe_decom) {
-                free(p);
+            for (uint64_t d = 0; d < 2 * decomp_size; d++) {
+                memcpy((void*)&prevIntermediateCiphertexts[k * 2 * decomp_size * num_coeff + d * num_coeff],
+                        (void*)rlwe_decom[d], num_coeff * sizeof(uint64_t));
             }
-
-            for (uint64_t j = 1; j < n_i; j++) {
-
-
-                Ciphertext temp;
-                rlwe_decom.clear();
-                rwle_decompositions(first_dim_intermediate_cts[k + j * product], newcontext_, decomp_size, pir_params_.gsw_base, rlwe_decom);
-                poc_nfllib_ntt_rlwe_decomp(rlwe_decom);
-                temp.resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-                poc_nfllib_external_product(CtMuxBits[j + previous_dim], rlwe_decom, newcontext_, decomp_size, temp,1);
-
-                for (auto p : rlwe_decom) {
-                    free(p);
-                }
-                evaluator_->add_inplace(intermediateCtxts[k], temp); // Adds to first component.
-
-
-
-            }
-
         }
 
+
+        // Copy ciphertext data into query matrix pointer
+        for (uint64_t k = 0; k < n_i; k++) {
+            for (uint64_t d = 0; d < 2 * decomp_size; d++) {
+                for (uint64_t c = 0; c < 2; c++) {
+                    memcpy((void*)&queryMatrix[k * 2 * decomp_size * 2 * num_coeff + c * 2 * decomp_size * num_coeff + d * num_coeff], 
+                                        (void*)CtMuxBits[k + previous_dim][d].data(c), num_coeff * sizeof(uint64_t));
+                }
+            }
+        }
+
+        // Do matrix multiplication
+        mul_matrix_matrix_mod(queryMatrix, 1, n_i, 2, 2 * decomp_size, prevIntermediateCiphertexts, n_i, product, 2 * decomp_size, 1,
+                                nextIntermediateCiphertexts, coeff_count, coeff_moduli, m);
+
+
+        intermediateCtxts.clear();
+        // Copy results into ciphertext objects
+        for (uint64_t k = 0; k < product; k++) {
+            Ciphertext ctxt;
+            ctxt.resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
+            for (uint64_t c = 0; c < 2; c++) {
+                poly_nfllib_add(&nextIntermediateCiphertexts[k * 2 * num_coeff + c * num_coeff], ctxt.data(c), ctxt.data(c));
+            }
+            intermediateCtxts.push_back(ctxt);
+        }
 
 
         for (uint32_t jj = 0; jj < intermediateCtxts.size(); jj++) {
@@ -744,8 +755,6 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
 
         }
 
-        first_dim_intermediate_cts.clear();
-        first_dim_intermediate_cts=intermediateCtxts;
         previous_dim=previous_dim+n_i;
 
     }
@@ -764,7 +773,7 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
     // disk_tracker.stop();
     // disk_tracker.print_stats();
 
-    return first_dim_intermediate_cts;
+    return intermediateCtxts;
 }
 
 void pir_server::set_enc_sk(GSWCiphertext sk_enc) {
