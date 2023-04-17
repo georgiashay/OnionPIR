@@ -624,6 +624,9 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
             }
         }
 
+        free(queryMatrix);
+        free(intermediateCiphertexts);
+
         auto expand_end  = high_resolution_clock::now();
 
         durrr =duration_cast<milliseconds>(expand_end - expand_start).count();
@@ -747,6 +750,10 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
             }
             intermediateCtxts.push_back(ctxt);
         }
+
+        free(queryMatrix);
+        free(prevIntermediateCiphertexts);
+        free(nextIntermediateCiphertexts);
 
 
         for (uint32_t jj = 0; jj < intermediateCtxts.size(); jj++) {
