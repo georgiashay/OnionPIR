@@ -932,6 +932,15 @@ int main(int argc, char *argv[]) {
     PirParams pir_params;
 
 
+    if (use_file) {
+        ifstream db_file;
+        db_file.open("db.db", ios::ate | ios::binary);
+        size_t total_size = db_file.tellg();
+        db_file.close();
+
+        number_of_items = total_size / (sizeof(uint8_t) *  size_per_item);
+    }
+
     EncryptionParameters parms(scheme_type::BFV);
     set_bfv_parms(parms);
     gen_params( number_of_items,  size_per_item, N, logt,
@@ -959,14 +968,7 @@ int main(int argc, char *argv[]) {
 
     random_device rd;
 
-    if (use_file) {
-        ifstream db_file;
-        db_file.open("db.db", ios::ate | ios::binary);
-        size_t total_size = db_file.tellg();
-        db_file.close();
-
-        number_of_items = total_size / (sizeof(uint8_t) *  size_per_item);
-    } else {
+    if (!use_file) {
         // Create test database
         ofstream db_file;
         db_file.open("db.db", ios::binary | ios::trunc);
