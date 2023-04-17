@@ -103,10 +103,6 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         prod *= pir_params_.nvec[i];
     }
 
-    // Columns, to turn into rows for consecutive access of db
-    uint64_t rows = prod / pir_params_.nvec[0];
-    uint64_t cols = pir_params_.nvec[0];
-
     uint64_t matrix_plaintexts = prod;
     assert(total <= matrix_plaintexts);
 
@@ -175,13 +171,6 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom);
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
 
-        // This is backwards from normal since we are doing a transform
-        std::uint64_t row = i % rows;
-        std::uint64_t col = i / rows;
-
-        std::uint64_t seek_location = (row * cols + col) * (decomp_size * coeff_count * coeff_mod_count) * sizeof(uint64_t);
-        split_db_file.seekp(seek_location);
-
         for (int d = 0; d < decomp_size; d++) {
             split_db_file.write((char*)plain_decom[d], coeff_count * coeff_mod_count * sizeof(uint64_t));
             free(plain_decom[d]);
@@ -210,12 +199,6 @@ pir_server::set_database(const unique_ptr<const std::uint8_t[], MmapDeleter> &by
         std::vector<uint64_t *> plain_decom;
         plain_decompositions(plain, newcontext_, decomp_size, pir_params_.plain_base, plain_decom, decomp_space);
         poc_nfllib_ntt_rlwe_decomp(plain_decom);
-
-        std::uint64_t row = (i + current_plaintexts) % rows;
-        std::uint64_t col = (i + current_plaintexts) / rows;
-
-        std::uint64_t seek_location = (row * cols + col) * (decomp_size * coeff_count * coeff_mod_count) * sizeof(uint64_t);
-        split_db_file.seekp(seek_location);
 
         for (int d = 0; d < decomp_size; d++) {
             split_db_file.write((char*)plain_decom[d], coeff_count * coeff_mod_count * sizeof(uint64_t));
@@ -347,7 +330,7 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
         for (uint64_t k = 0; k < product; k++) {
 
             first_dim_intermediate_cts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-            std::vector<uint64_t *> split_db_k = get_split_db_at(k * n_i);
+            std::vector<uint64_t *> split_db_k = get_split_db_at(k);
             poc_nfllib_external_product(list_enc[0], split_db_k, newcontext_, decomp_size, first_dim_intermediate_cts[k],1);
 
             for (uint64_t j = 1; j < n_i; j++) {
@@ -361,7 +344,7 @@ PirReply pir_server::generate_reply(PirQuery query, uint32_t client_id, SecretKe
                 temp.resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
 
                 auto expand_start = high_resolution_clock::now();
-                std::vector<uint64_t *> split_db_k_j = get_split_db_at(k * n_i + j);
+                std::vector<uint64_t *> split_db_k_j = get_split_db_at(k + j * product);
                 poc_nfllib_external_product(list_enc[j], split_db_k_j, newcontext_, decomp_size, temp,1);
                 auto expand_end  = high_resolution_clock::now();
 
@@ -602,7 +585,7 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
         for (uint64_t k = 0; k < product; k++) {
 
             first_dim_intermediate_cts[k].resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
-            std::vector<uint64_t *> split_db_k = get_split_db_at(k * n_i);
+            std::vector<uint64_t *> split_db_k = get_split_db_at(k);
             poc_nfllib_external_product(list_enc[0], split_db_k, newcontext_, decomp_size, first_dim_intermediate_cts[k],1);
 
             for (uint64_t j = 1; j < n_i; j++) {
@@ -616,7 +599,7 @@ PirReply pir_server::generate_reply_combined(PirQuery query, uint32_t client_id,
                 temp.resize(newcontext_, newcontext_->first_context_data()->parms_id(), 2);
 
 
-                std::vector<uint64_t *> split_db_k_j = get_split_db_at(k * n_i + j);
+                std::vector<uint64_t *> split_db_k_j = get_split_db_at(k + j * product);
                 poc_nfllib_external_product(list_enc[j], split_db_k_j, newcontext_, decomp_size, temp,1);
 
 
