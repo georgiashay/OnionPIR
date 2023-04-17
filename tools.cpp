@@ -34,6 +34,9 @@ std::uint64_t get_io_delay_ticks() {
 	return std::stoi(pf_string);
 }
 
+// Am I sure carries are being handled correctly?
+// They are definitely not being handled correctly.
+// TODO: PLEASE FIX THIS
 uint64_t mulmod(uint64_t a, uint64_t b, uint64_t n, uint128_t m) {
     uint128_t prod_ = (uint128_t)a * b;
 
@@ -100,6 +103,23 @@ void mul_matrix_matrix_mod(uint64_t* A, uint64_t A_rows, uint64_t A_cols, uint64
     uint64_t C_cell_size = C_sub_size;
     uint64_t C_sub_row_size = C_sub_cols * poly_size;
     uint64_t C_sub_cell_size = poly_size;
+
+    // Einsum
+    // C_row in [0, A_rows) -> [0, M)
+    // C_col in [0, B_cols) -> [0, N)
+    // C_sub_row in [0, A_sub_rows) -> [0, P)
+    // C_sub_col in [0, B_sub_cols) -> [0, Q)
+    // cm in [0, coeff_moduli.size()) -> [0, C)
+    // p in [0, N) -> [0, D)
+    // i in [0, A_cols) -> [0, J)
+    // j in [0, A_sub_cols) -> [0, K)
+
+
+    // C_(m, n, p, q, c, d) = A_(m, j, p, k, c, d) * B_(j, n, k, q, c, d)
+    // C_(C_row, C_col, C_sub_row, C_sub_col, cm, p) = A_(C_row, i, C_sub_row, j, cm, p) * B_(i, C_col, j, C_sub_col, cm, p)
+
+    printf("Matrix MUL parameters:\n");
+    printf("M: %ld\nN: %ld\nP: %ld\nQ: %ld\nJ: %ld\nK: %ld\nC: %ld\nD: %ld\n", A_rows, B_cols, A_sub_rows, B_sub_cols, A_cols, A_sub_cols, coeff_moduli.size(), N);
 
     // Same as B_total_cols
     uint64_t A_total_cols = A_cols * A_sub_cols;
